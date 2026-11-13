@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Beat the M — Overlay 9:16 (TikTok)</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /*
+    Hochformat 9:16 (1080 x 1920) für TikTok/Reels/Shorts.
+      oben   : deine Facecam (gut ein Drittel der Höhe)
+      mitte  : Frage (Text, optional Bild, Antwort)
+      unten  : nur die Spieler-Icons (der Spieler, der dran ist, blinkt)
+    Alle Maße in echten Pixeln; die Bühne wird in jede OBS-/Fenstergröße eingepasst.
+    Optional: ?scores=1 blendet unter den Icons Name + Punktestand ein.
+  */
+  html, body.overlay-body {
+    width: 100vw; height: 100vh; overflow: hidden; position: relative;
+    background: transparent !important;
+  }
+  #stage { position: absolute; top: 0; left: 0; width: 1080px; height: 1920px; transform-origin: top left; }
+
+  /* ---- Facecam: dicker Rahmen mit runden Innenecken (überdeckt die Kamera-Ecken) ----
+     Kamera in OBS auf den INNENBEREICH legen: x 40, y 76, 1000 x 620 */
+  .m-cam.facecam-frame {
+    position: absolute; left: 24px; top: 60px; width: 1032px; height: 652px;
+    border-width: 16px; border-radius: 36px;
+  }
+
+  /* ---- Mitte: Frage ---- */
+  .m-middle {
+    position: absolute; left: 40px; top: 740px; width: 1000px; height: 740px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .m-card { width: 100%; max-height: 100%; padding: 32px 40px; gap: 18px; overflow: hidden; }
+  .m-card .question-value { font-size: 40px; }
+  .m-card .question-text  { font-size: var(--qfs, 56px); line-height: 1.25; }
+  .m-card .answer-text    { font-size: 52px; line-height: 1.2; }
+  .m-card .m-img {
+    max-width: 100%; max-height: var(--imgh, 380px); object-fit: contain;
+    border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.45);
+  }
+  .m-idle { display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+  .m-idle .m-logo { max-width: 100%; max-height: 420px; object-fit: contain; }
+  .m-idle .m-board {
+    font-family: 'Bebas Neue', sans-serif; font-size: 72px; letter-spacing: 6px;
+    color: var(--color-secondary); text-shadow: 0 4px 10px rgba(0,0,0,.7);
+  }
+
+  /* ---- Unten: nur die Icons ---- */
+  .m-players {
+    position: absolute; left: 0; top: 1510px; width: 1080px;
+    display: flex; justify-content: center; align-items: flex-start; gap: 40px;
+  }
+  .m-players .stage-slot { position: relative; width: 210px; }
+  /* solange der Gewinner läuft, ruhen die Animationen dahinter */
+  #stage.winner-on .stage-slot .stage-avatar, #stage.winner-on .question-card { animation: none; }
+
+  /* ---- Gewinner (bewusst schlicht) ---- */
+  .m-winner {
+    position: absolute; left: 0; top: 724px; width: 1080px; height: 1196px; z-index: 20; overflow: hidden;
+    opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility 0s linear .6s;
+  }
+  .m-winner.show { opacity: 1; visibility: visible; transition: opacity .6s ease; }
+  .m-winner-dim { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(22,26,78,.985) 0%, rgba(4,5,15,.99) 80%); }
+  .m-winner canvas { position: absolute; left: 0; top: 0; width: 1080px; height: 1196px; }
+  .m-winner-content {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  }
+  .mw-title {
+    font-family: 'Bebas Neue', sans-serif; font-size: 110px; line-height: 1.05; letter-spacing: 8px;
+    color: var(--color-secondary); text-shadow: 0 0 36px rgba(var(--wc), .85), 0 6px 0 rgba(0,0,0,.5);
+    animation: mw-pop .9s cubic-bezier(.2,1.6,.4,1) both; text-align: center;
+  }
+  @keyframes mw-pop { from { transform: scale(.2) translateY(-80px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .mw-row { display: flex; gap: 30px; justify-content: center; align-items: flex-start; }
+  .mw-card { display: flex; flex-direction: column; align-items: center; gap: 12px; width: var(--cw); animation: mw-in 1s .35s cubic-bezier(.2,1.4,.4,1) both; }
+  @keyframes mw-in { from { transform: scale(.3) translateY(140px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .mw-wrap { position: relative; width: var(--sz); height: var(--sz); }
+  .mw-glow { position: absolute; inset: 0; border-radius: 30px; box-shadow: 0 0 80px 24px var(--pc); animation: mw-glow 1.2s ease-in-out infinite alternate; }
+  @keyframes mw-glow { from { opacity: .35; } to { opacity: 1; } }
+  .mw-avatar {
+    position: relative; width: 100%; height: 100%; border: 10px solid var(--pc); border-radius: 30px;
+    background: rgba(10,12,30,.95); overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .mw-avatar img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+  .mw-avatar .ph { font-family: 'Bebas Neue', sans-serif; font-size: calc(var(--sz) * .5); color: var(--pc); opacity: .6; }
+  .mw-name { font-family: 'Bebas Neue', sans-serif; font-size: var(--nsz); line-height: 1.1; letter-spacing: 4px; color: #fff;
+             text-shadow: 0 4px 0 rgba(0,0,0,.5); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mw-score { font-family: 'Bebas Neue', sans-serif; font-size: var(--ssz); line-height: 1.1; letter-spacing: 3px; color: var(--color-secondary); }
+</style>
+</head>
+<body class="overlay-body">
+
+  <div id="stage">
+    <div class="m-cam facecam-frame" id="m-cam"></div>
+    <div class="m-middle" id="m-middle"></div>
+    <div class="m-players" id="m-players"></div>
+    <div class="m-winner" id="m-winner">
+      <div class="m-winner-dim"></div>
+      <div class="m-winner-content" id="m-winner-content"></div>
+      <canvas id="m-confetti" width="540" height="598"></canvas>
+    </div>
+  </div>
+
+<script src="client.js"></script>
+<script src="overlay-mobile.js"></script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 //  │                                              │
 //  │        SAFE_CONTENT_AREA (Spielinhalt)       │  hier rendert das jeweilige Spiel
 //  │                                              │
-//  │  [Av1] [Av2]   ┌ Host-Facecam ┐   [Av3] [Av4]│  unten: Avatare + deine Facecam
+//  │  [Av1] [Av2]   ┌ Host-Facecam ┐   [Av3] [Av4]│  unten: Avatare + deine Facecam (Kamera: HOST_INNER)
 //  └────────────────└──────────────┘──────────────┘  Facecam sitzt ganz am unteren Rand
 //
 // Nutzung:
@@ -22,18 +22,25 @@ const Stage = (() => {
   const H = 1080;
 
   const LOGO_AREA = { x: 560, y: 14, w: 800, h: 160 };
-  const SAFE_CONTENT_AREA = { x: 60, y: 190, w: 1800, h: 590 };
+  const SAFE_CONTENT_AREA = { x: 60, y: 190, w: 1800, h: 580 };
 
-  // Deine Facecam: 16:9, bündig am unteren Rand, mittig
-  const HOST_CAM = { x: 720, y: 810, w: 480, h: 270 };
+  // Deine Facecam: dicker Rahmen mit runden Ecken. Der runde Innenrand überdeckt
+  // die Ecken deiner Kamera. Kamera-Bereich (16:9) = HOST_INNER, Rahmen liegt außen drumherum.
+  const HOST_BORDER = 16;
+  const HOST_RADIUS = 36; // Außenradius -> Innenradius = 36 - 16 = 20
+  const HOST_INNER = { x: 720, y: 794, w: 480, h: 270 };       // hier die Webcam in OBS platzieren
+  const HOST_CAM = {                                             // Rahmen außen (Rand unten bündig)
+    x: HOST_INNER.x - HOST_BORDER, y: HOST_INNER.y - HOST_BORDER,
+    w: HOST_INNER.w + 2 * HOST_BORDER, h: HOST_INNER.h + 2 * HOST_BORDER
+  };
 
   // Avatar-Slots (Avatar quadratisch + Namensschild darunter)
-  const SLOT_W = 220;
-  const SLOT_H = 264;
-  const SLOT_Y = 806;
+  const SLOT_W = 200;
+  const SLOT_H = 278;
+  const SLOT_Y = 792;
   const SLOT_X = {
-    L1: 190,   // außen links
-    L2: 450,   // innen links
+    L1: 210,   // außen links
+    L2: 470,   // innen links
     R1: 1250,  // innen rechts
     R2: 1510   // außen rechts
   };
@@ -122,11 +129,19 @@ const Stage = (() => {
     return { content };
   }
 
-  function holePolygon() {
-    const { x, y, w, h } = HOST_CAM;
-    const x2 = x + w, y2 = y + h;
-    return `polygon(evenodd, 0px 0px, ${W}px 0px, ${W}px ${H}px, 0px ${H}px, 0px 0px, ` +
-           `${x}px ${y}px, ${x}px ${y2}px, ${x2}px ${y2}px, ${x2}px ${y}px, ${x}px ${y}px)`;
+  function roundedRectPath(x, y, w, h, r) {
+    return `M${x + r} ${y} H${x + w - r} A${r} ${r} 0 0 1 ${x + w} ${y + r} V${y + h - r} ` +
+           `A${r} ${r} 0 0 1 ${x + w - r} ${y + h} H${x + r} A${r} ${r} 0 0 1 ${x} ${y + h - r} ` +
+           `V${y + r} A${r} ${r} 0 0 1 ${x + r} ${y} Z`;
+  }
+
+  // Ausschnitt ("Loch") exakt im runden Innenrand der Facecam. 2px größer als der Innenrand,
+  // damit er unter dem deckenden Rahmen verschwindet (keine Haarlinie an der Kante).
+  function holeClip() {
+    const g = 2;
+    const r = HOST_RADIUS - HOST_BORDER + g;
+    const hole = roundedRectPath(HOST_INNER.x - g, HOST_INNER.y - g, HOST_INNER.w + 2 * g, HOST_INNER.h + 2 * g, r);
+    return `path(evenodd, "M0 0 H${W} V${H} H0 Z ${hole}")`;
   }
 
   function setImg(img, src) {
@@ -146,7 +161,7 @@ const Stage = (() => {
     // Hintergrundbild (mit transparentem Loch an der Host-Facecam)
     if (s.backgroundImage) {
       els.bg.style.backgroundImage = `url("${s.backgroundImage}")`;
-      els.bg.style.clipPath = s.showModeratorCam === false ? 'none' : holePolygon();
+      els.bg.style.clipPath = s.showModeratorCam === false ? 'none' : holeClip();
       els.bg.classList.remove('hidden');
     } else {
       els.bg.style.backgroundImage = '';
@@ -195,7 +210,7 @@ const Stage = (() => {
     el.classList.toggle('stage-blur', !!on);
   }
 
-  return { W, H, LOGO_AREA, SAFE_CONTENT_AREA, HOST_CAM, init, update, fit, setBlur };
+  return { W, H, LOGO_AREA, SAFE_CONTENT_AREA, HOST_CAM, HOST_INNER, holeClip, init, update, fit, setBlur };
 })();
 
 if (typeof window !== 'undefined') window.Stage = Stage;

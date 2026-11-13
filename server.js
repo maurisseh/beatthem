@@ -34,25 +34,43 @@ if (!fs.existsSync(SHOWS_DIR)) fs.mkdirSync(SHOWS_DIR, { recursive: true });
 
 function uid() { return crypto.randomUUID(); }
 
-function makeCategory(name, values) {
+function makeQuestion(value) {
   return {
     id: uid(),
-    name,
-    questions: values.map(v => ({
-      id: uid(),
-      value: v,
-      question: '',
-      answer: '',
-      answered: false,
-      mediaType: 'none', // 'none' | 'image' | 'audio'
-      mediaData: ''      // dataURL
-    }))
+    value,
+    question: '',
+    answer: '',
+    answered: false,
+    mediaType: 'none', // 'none' | 'image' | 'audio'
+    mediaData: '',     // dataURL (wird NICHT über SSE/state verschickt, sondern über /media/q/<id>)
+    mediaName: '',     // Dateiname des Bildes (für Text-Export/Import)
+    mediaVer: 0        // Zeitstempel der letzten Bildänderung (Cache-Busting)
   };
 }
 
-function defaultJeopardyCategories(values) {
-  const names = ['Kategorie 1', 'Kategorie 2', 'Kategorie 3', 'Kategorie 4', 'Kategorie 5', 'Kategorie 6'];
-  return names.map(n => makeCategory(n, values));
+function makeCategory(name, values) {
+  return { id: uid(), name, questions: values.map(v => makeQuestion(v)) };
+}
+
+function makeBoard(name, values, categoryCount) {
+  const cats = [];
+  for (let i = 1; i <= categoryCount; i++) cats.push(makeCategory('Kategorie ' + i, values));
+  return { id: uid(), name, values: values.slice(), categories: cats };
+}
+
+function defaultJeopardy() {
+  const boards = [
+    makeBoard('Runde 1', [100, 200, 300, 400, 500], 6),
+    makeBoard('Runde 2', [200, 400, 600, 800, 1000], 6)
+  ];
+  return {
+    boards,                       // beliebig viele Bretter
+    activeBoardId: boards[0].id,  // welches Brett gerade im Overlay live ist
+    activeQuestion: null,         // { boardId, catId, qId }
+    showAnswer: false,
+    winnerShown: false,           // Gewinner-Animation im Overlay aktiv?
+    winnerTs: 0                   // Zeitstempel, damit die Animation bei erneutem Start neu läuft
+  };
 }
 
 function defaultBeichtenCards(count) {
@@ -86,18 +104,13 @@ function defaultState() {
       glowEnabled: true,
       glowColor: '#f5c518',
       glowBlur: 18,
-      glowIntensity: 70
+      glowIntensity: 70,
+      autoWinner: true          // Gewinner-Animation automatisch nach der letzten Frage
     },
     activePlayerId: null, // welcher Spieler gerade "dran" ist (Glow-Highlight)
     activeGame: 'jeopardy',
     games: {
-      jeopardy: {
-        round: 1,
-        round1: defaultJeopardyCategories([100, 200, 300, 400, 500]),
-        round2: defaultJeopardyCategories([200, 400, 600, 800, 1000]),
-        activeQuestion: null, // { round, catId, qId }
-        showAnswer: false
-      },
+      jeopardy: defaultJeopardy(),
       emoji: {
         puzzles: defaultEmojiPuzzles(),
         activeId: null,
@@ -146,15 +159,44 @@ function migrateOldState(parsed) {
   };
 }
 
+// Altes Format (round1/round2) -> neues Format (boards[]). Bestehende Fragen bleiben erhalten.
+function migrateJeopardy(old) {
+  if (!old || Array.isArray(old.boards)) return old;
+  if (!old.round1 && !old.round2) return old; // nichts zu migrieren -> Defaults greifen
+  console.log('ℹ️  Migriere Jeopardy-Runden auf das Mehrfach-Brett-Format …');
+  const toBoard = (cats, name, fallbackValues) => {
+    cats = Array.isArray(cats) ? cats : [];
+    const values = (cats[0] && cats[0].questions && cats[0].questions.map(q => q.value)) || fallbackValues;
+    if (!cats.length) cats = [makeCategory('Kategorie 1', values)];
+    return { id: uid(), name, values, categories: cats };
+  };
+  const b1 = toBoard(old.round1, 'Runde 1', [100, 200, 300, 400, 500]);
+  const b2 = toBoard(old.round2, 'Runde 2', [200, 400, 600, 800, 1000]);
+  let aq = null;
+  if (old.activeQuestion) {
+    const bd = old.activeQuestion.round === 2 ? b2 : b1;
+    aq = { boardId: bd.id, catId: old.activeQuestion.catId, qId: old.activeQuestion.qId };
+  }
+  return {
+    boards: [b1, b2],
+    activeBoardId: (old.round === 2 ? b2 : b1).id,
+    activeQuestion: aq,
+    showAnswer: !!old.showAnswer,
+    winnerShown: !!old.winnerShown,
+    winnerTs: old.winnerTs || 0
+  };
+}
+
 function deepMergeDefaults(loaded) {
   const def = defaultState();
+  const loadedJeopardy = migrateJeopardy((loaded.games || {}).jeopardy);
   const merged = {
     ...def,
     ...loaded,
     meta: { ...def.meta, ...(loaded.meta || {}) },
     settings: { ...def.settings, ...(loaded.settings || {}) },
     games: {
-      jeopardy: { ...def.games.jeopardy, ...((loaded.games || {}).jeopardy || {}) },
+      jeopardy: { ...def.games.jeopardy, ...(loadedJeopardy || {}) },
       emoji: { ...def.games.emoji, ...((loaded.games || {}).emoji || {}) },
       beichten: { ...def.games.beichten, ...((loaded.games || {}).beichten || {}) }
     },
@@ -172,15 +214,25 @@ function deepMergeDefaults(loaded) {
   }
   if (typeof merged.games.beichten.activeIndex !== 'number') merged.games.beichten.activeIndex = 0;
   merged.games.beichten.activeIndex = Math.max(0, Math.min(merged.games.beichten.activeIndex, merged.games.beichten.cards.length - 1));
-  // fehlende Medienfelder an alten Fragen ergänzen
-  ['round1', 'round2'].forEach(key => {
-    (merged.games.jeopardy[key] || []).forEach(cat => {
+  // Jeopardy-Bretter absichern (fehlende Felder ergänzen, Altlasten entfernen)
+  const J = merged.games.jeopardy;
+  delete J.round; delete J.round1; delete J.round2;
+  if (!Array.isArray(J.boards) || J.boards.length === 0) J.boards = defaultJeopardy().boards;
+  J.boards.forEach((bd, i) => {
+    if (!bd.id) bd.id = uid();
+    if (!bd.name) bd.name = 'Brett ' + (i + 1);
+    if (!Array.isArray(bd.categories) || bd.categories.length === 0) bd.categories = [makeCategory('Kategorie 1', bd.values || [100, 200, 300, 400, 500])];
+    if (!Array.isArray(bd.values) || bd.values.length === 0) bd.values = bd.categories[0].questions.map(q => q.value);
+    bd.categories.forEach(cat => {
       (cat.questions || []).forEach(q => {
         if (q.mediaType === undefined) q.mediaType = 'none';
         if (q.mediaData === undefined) q.mediaData = '';
+        if (q.mediaName === undefined) q.mediaName = '';
+        if (q.mediaVer === undefined) q.mediaVer = 0;
       });
     });
   });
+  if (!J.boards.some(b => b.id === J.activeBoardId)) J.activeBoardId = J.boards[0].id;
   return merged;
 }
 
@@ -218,17 +270,73 @@ function jp() { return state.games.jeopardy; }
 function em() { return state.games.emoji; }
 function bt() { return state.games.beichten; }
 
-function getBoard(round) {
-  return round === 2 ? jp().round2 : jp().round1;
+const MAX_CATEGORIES = 8;
+const MAX_ROWS = 8;
+
+function boardById(id) { return jp().boards.find(b => b.id === id) || null; }
+function activeBoard() { return boardById(jp().activeBoardId) || jp().boards[0]; }
+
+function sanitizeValues(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(Number).filter(n => Number.isFinite(n) && n >= 0).map(Math.round).slice(0, MAX_ROWS);
 }
 
-function findQuestion(round, catId, qId) {
-  const board = getBoard(round);
-  const cat = board.find(c => c.id === catId);
+function findQuestion(boardId, catId, qId) {
+  const board = boardById(boardId);
+  if (!board) return null;
+  const cat = board.categories.find(c => c.id === catId);
   if (!cat) return null;
   const q = cat.questions.find(q => q.id === qId);
   if (!q) return null;
-  return { cat, q };
+  return { board, cat, q };
+}
+
+function findQuestionById(qId) {
+  for (const board of jp().boards)
+    for (const cat of board.categories)
+      for (const q of cat.questions) if (q.id === qId) return q;
+  return null;
+}
+
+// schließt die offene Frage, falls es sie (z. B. nach dem Löschen) nicht mehr gibt
+function closeActiveIfMissing() {
+  const aq = jp().activeQuestion;
+  if (aq && !findQuestion(aq.boardId, aq.catId, aq.qId)) {
+    jp().activeQuestion = null;
+    jp().showAnswer = false;
+  }
+}
+
+function resetQuestion(q) {
+  q.question = ''; q.answer = ''; q.answered = false;
+  q.mediaType = 'none'; q.mediaData = ''; q.mediaName = ''; q.mediaVer = 0;
+}
+
+// true, wenn jede BEFÜLLTE Frage (Text oder Bild) auf ALLEN Brettern abgehakt ist.
+// Leere Fragen/Bretter zählen nicht mit -> Reserve-Bretter blockieren das Spielende nicht.
+function allQuestionsAnswered() {
+  let relevant = 0;
+  for (const board of jp().boards) {
+    for (const cat of board.categories) {
+      for (const q of cat.questions) {
+        const filled = !!(q.question && q.question.trim()) || q.mediaType === 'image';
+        if (!filled) continue;
+        relevant++;
+        if (!q.answered) return false;
+      }
+    }
+  }
+  return relevant > 0;
+}
+
+// Startet automatisch die Gewinner-Animation, sobald die letzte Frage abgeschlossen ist
+function maybeAutoWinner() {
+  if (state.settings.autoWinner === false) return;
+  if (jp().activeQuestion || jp().winnerShown) return;
+  if (state.players.length > 0 && allQuestionsAnswered()) {
+    jp().winnerShown = true;
+    jp().winnerTs = Date.now();
+  }
 }
 
 function applyAction(action) {
@@ -296,22 +404,95 @@ function applyAction(action) {
       state.players.forEach(p => (p.score = 0));
       break;
 
-    // ---------- Jeopardy ----------
-    case 'SET_ROUND':
-      jp().round = payload.round;
-      jp().activeQuestion = null;
-      jp().showAnswer = false;
+    // ---------- Jeopardy (mehrere Bretter) ----------
+    case 'SET_ACTIVE_BOARD': // { boardId } — welches Brett ist live im Overlay
+      if (boardById(payload.boardId)) {
+        jp().activeBoardId = payload.boardId;
+        jp().activeQuestion = null;
+        jp().showAnswer = false;
+        jp().winnerShown = false;
+      }
+      break;
+
+    case 'ADD_BOARD': { // { id?, name?, values? } — neues Brett (wird NICHT automatisch live geschaltet)
+      const cur = activeBoard();
+      const wanted = sanitizeValues(payload.values);
+      const values = wanted.length ? wanted : cur.values.slice();
+      const board = makeBoard(String(payload.name || ('Brett ' + (jp().boards.length + 1))).slice(0, 60), values, 6);
+      if (typeof payload.id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(payload.id) && !boardById(payload.id)) board.id = payload.id;
+      jp().boards.push(board);
+      break;
+    }
+
+    case 'DELETE_BOARD': { // { boardId } — mindestens ein Brett bleibt
+      if (jp().boards.length <= 1) break;
+      const idx = jp().boards.findIndex(b => b.id === payload.boardId);
+      if (idx === -1) break;
+      const [removed] = jp().boards.splice(idx, 1);
+      if (jp().activeBoardId === removed.id) {
+        jp().activeBoardId = jp().boards[Math.min(idx, jp().boards.length - 1)].id;
+        jp().winnerShown = false;
+      }
+      closeActiveIfMissing();
+      break;
+    }
+
+    case 'RENAME_BOARD': { // { boardId, name }
+      const board = boardById(payload.boardId);
+      const name = String(payload.name || '').trim().slice(0, 60);
+      if (board && name) board.name = name;
+      break;
+    }
+
+    case 'SET_BOARD_VALUES': { // { boardId, values:[100,200,...] } — Punktwerte = Zeilen (1–8)
+      const board = boardById(payload.boardId);
+      const values = sanitizeValues(payload.values);
+      if (!board || !values.length) break;
+      board.values = values;
+      board.categories.forEach(cat => {
+        while (cat.questions.length > values.length) cat.questions.pop();
+        while (cat.questions.length < values.length) cat.questions.push(makeQuestion(values[cat.questions.length]));
+        cat.questions.forEach((q, i) => { q.value = values[i]; });
+      });
+      closeActiveIfMissing();
+      break;
+    }
+
+    case 'ADD_CATEGORY': { // { boardId }
+      const board = boardById(payload.boardId);
+      if (!board || board.categories.length >= MAX_CATEGORIES) break;
+      board.categories.push(makeCategory('Kategorie ' + (board.categories.length + 1), board.values));
+      break;
+    }
+
+    case 'REMOVE_CATEGORY': { // { boardId, catId }
+      const board = boardById(payload.boardId);
+      if (!board || board.categories.length <= 1) break;
+      const idx = board.categories.findIndex(c => c.id === payload.catId);
+      if (idx === -1) break;
+      board.categories.splice(idx, 1);
+      closeActiveIfMissing();
+      break;
+    }
+
+    case 'SHOW_WINNER':
+      jp().winnerShown = true;
+      jp().winnerTs = Date.now();
+      break;
+
+    case 'HIDE_WINNER':
+      jp().winnerShown = false;
       break;
 
     case 'EDIT_CATEGORY_NAME': {
-      const board = getBoard(payload.round);
-      const cat = board.find(c => c.id === payload.catId);
+      const board = boardById(payload.boardId);
+      const cat = board && board.categories.find(c => c.id === payload.catId);
       if (cat) cat.name = payload.name;
       break;
     }
 
     case 'EDIT_QUESTION': {
-      const found = findQuestion(payload.round, payload.catId, payload.qId);
+      const found = findQuestion(payload.boardId, payload.catId, payload.qId);
       if (found) {
         if (payload.question !== undefined) found.q.question = payload.question;
         if (payload.answer !== undefined) found.q.answer = payload.answer;
@@ -319,23 +500,79 @@ function applyAction(action) {
       break;
     }
 
-    case 'EDIT_QUESTION_MEDIA': {
-      const found = findQuestion(payload.round, payload.catId, payload.qId);
+    case 'EDIT_QUESTION_MEDIA': { // { boardId, catId, qId, mediaType, mediaData, mediaName }
+      const found = findQuestion(payload.boardId, payload.catId, payload.qId);
       if (found) {
-        found.q.mediaType = payload.mediaType || 'none';
+        found.q.mediaType = payload.mediaData ? (payload.mediaType || 'image') : 'none';
         found.q.mediaData = payload.mediaData || '';
+        found.q.mediaName = payload.mediaData ? String(payload.mediaName || '').slice(0, 120) : '';
+        found.q.mediaVer = Date.now();
       }
       break;
     }
 
-    case 'OPEN_QUESTION':
-      jp().activeQuestion = { round: payload.round, catId: payload.catId, qId: payload.qId };
-      jp().showAnswer = false;
+    // Text-Import: { boardId, replace, boardName?, categories:{ "1":"Name" }, questions:[{ k, f, question?, answer?, media?:{ name, dataUrl } }] }
+    case 'IMPORT_BOARD': {
+      const board = boardById(payload.boardId);
+      if (!board) break;
+      const cats = (payload.categories && typeof payload.categories === 'object') ? payload.categories : {};
+      const qs = Array.isArray(payload.questions) ? payload.questions : [];
+      const ks = [...Object.keys(cats).map(Number), ...qs.map(x => Number(x.k))].filter(n => Number.isInteger(n) && n > 0);
+      const maxK = Math.min(MAX_CATEGORIES, Math.max(1, ...ks));
+
+      // Ein noch leeres Brett (keine Fragen, Standardnamen) wird automatisch auf die genutzten Kategorien zugeschnitten
+      const untouched = board.categories.every(c =>
+        /^Kategorie \d+$/.test(c.name) && c.questions.every(q => !q.question && !q.answer && q.mediaType !== 'image'));
+
+      if (payload.replace) {
+        board.categories.forEach((cat, i) => {
+          cat.name = 'Kategorie ' + (i + 1);
+          cat.questions.forEach(resetQuestion);
+        });
+        jp().activeQuestion = null;
+        jp().showAnswer = false;
+      }
+      if (payload.replace || untouched) {
+        while (board.categories.length > maxK) board.categories.pop();
+      }
+      while (board.categories.length < maxK) {
+        board.categories.push(makeCategory('Kategorie ' + (board.categories.length + 1), board.values));
+      }
+      if (payload.boardName) board.name = String(payload.boardName).trim().slice(0, 60) || board.name;
+
+      Object.keys(cats).forEach(k => {
+        const cat = board.categories[Number(k) - 1];
+        if (cat) cat.name = String(cats[k]).slice(0, 60);
+      });
+      qs.forEach(it => {
+        const cat = board.categories[Number(it.k) - 1];
+        const q = cat && cat.questions[Number(it.f) - 1];
+        if (!q) return;
+        if (typeof it.question === 'string') q.question = it.question;
+        if (typeof it.answer === 'string') q.answer = it.answer;
+        if (it.media && typeof it.media.dataUrl === 'string' && it.media.dataUrl.startsWith('data:')) {
+          q.mediaType = 'image';
+          q.mediaData = it.media.dataUrl;
+          q.mediaName = String(it.media.name || '').slice(0, 120);
+          q.mediaVer = Date.now();
+        }
+        q.answered = false;
+      });
+      closeActiveIfMissing();
+      break;
+    }
+
+    case 'OPEN_QUESTION': // { boardId, catId, qId }
+      if (findQuestion(payload.boardId, payload.catId, payload.qId)) {
+        jp().activeQuestion = { boardId: payload.boardId, catId: payload.catId, qId: payload.qId };
+        jp().showAnswer = false;
+      }
       break;
 
     case 'CLOSE_QUESTION':
       jp().activeQuestion = null;
       jp().showAnswer = false;
+      maybeAutoWinner();
       break;
 
     case 'TOGGLE_ANSWER':
@@ -343,18 +580,20 @@ function applyAction(action) {
       break;
 
     case 'MARK_ANSWERED': {
-      const found = findQuestion(payload.round, payload.catId, payload.qId);
+      const found = findQuestion(payload.boardId, payload.catId, payload.qId);
       if (found) found.q.answered = payload.answered;
+      if (payload.answered) maybeAutoWinner(); // greift nur, wenn gerade keine Frage offen ist
       break;
     }
 
-    case 'RESET_BOARD':
-      [...jp().round1, ...jp().round2].forEach(cat =>
-        cat.questions.forEach(q => (q.answered = false))
-      );
+    case 'RESET_BOARD': { // { boardId? } — ohne boardId werden ALLE Bretter zurückgesetzt
+      const targets = payload && payload.boardId ? [boardById(payload.boardId)].filter(Boolean) : jp().boards;
+      targets.forEach(board => board.categories.forEach(cat => cat.questions.forEach(q => (q.answered = false))));
       jp().activeQuestion = null;
       jp().showAnswer = false;
+      jp().winnerShown = false;
       break;
+    }
 
     // ---------- Emoji-Rätsel ----------
     case 'ADD_PUZZLE':
@@ -462,8 +701,13 @@ function applyAction(action) {
 // ============================================================
 
 let sseClients = [];
+// Fragen-Bilder (mediaData) werden NICHT mitgeschickt — das Overlay lädt sie einzeln über
+// /media/q/<id> (und der Browser cached sie). So bleibt jedes Live-Update klein.
+const slimReplacer = (key, value) => (key === 'mediaData' ? '' : value);
+const slimJson = () => JSON.stringify(state, slimReplacer);
+
 function broadcastState() {
-  const payload = `data: ${JSON.stringify(state)}\n\n`;
+  const payload = `data: ${slimJson()}\n\n`;
   sseClients.forEach(res => res.write(payload));
 }
 
@@ -519,8 +763,28 @@ function sendJson(res, code, obj) {
 
 const server = http.createServer(async (req, res) => {
   // ---- öffentlich (Overlay braucht keinen Login) ----
-  if (req.url === '/api/state' && req.method === 'GET') {
-    return sendJson(res, 200, state);
+  const [pathname, queryString = ''] = req.url.split('?');
+
+  // ?full=1 liefert den kompletten State inkl. Bilder (wird für das Backup/den Export gebraucht)
+  if (pathname === '/api/state' && req.method === 'GET') {
+    const body = queryString.split('&').includes('full=1') ? JSON.stringify(state) : slimJson();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(body);
+  }
+
+  // Bild einer Frage (liegt als dataURL im State) als normale Bilddatei ausliefern
+  const mediaMatch = pathname.match(/^\/media\/q\/([A-Za-z0-9-]+)$/);
+  if (mediaMatch && req.method === 'GET') {
+    const q = findQuestionById(mediaMatch[1]);
+    const m = q && q.mediaData ? /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(q.mediaData) : null;
+    if (!m) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Kein Bild'); }
+    const buf = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]));
+    res.writeHead(200, {
+      'Content-Type': m[1],
+      'Content-Length': buf.length,
+      'Cache-Control': 'public, max-age=31536000, immutable' // URL enthält ?v=<mediaVer>
+    });
+    return res.end(buf);
   }
 
   if (req.url === '/api/events' && req.method === 'GET') {
@@ -530,7 +794,7 @@ const server = http.createServer(async (req, res) => {
       Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*'
     });
-    res.write(`data: ${JSON.stringify(state)}\n\n`);
+    res.write(`data: ${slimJson()}\n\n`);
     sseClients.push(res);
     req.on('close', () => { sseClients = sseClients.filter(c => c !== res); });
     return;

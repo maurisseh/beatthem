@@ -54,7 +54,13 @@ function connectLiveState(onState) {
   return es;
 }
 
+// Das Brett, das gerade live im Overlay ist (Objekt mit { id, name, values, categories })
 function currentBoard(state) {
   const jeopardy = state.games.jeopardy;
-  return jeopardy.round === 2 ? jeopardy.round2 : jeopardy.round1;
+  return jeopardy.boards.find(b => b.id === jeopardy.activeBoardId) || jeopardy.boards[0];
+}
+
+// URL des Bildes einer Frage (wird vom Server einzeln ausgeliefert und vom Browser gecached)
+function questionImageUrl(q) {
+  return '/media/q/' + q.id + '?v=' + (q.mediaVer || 0);
 }

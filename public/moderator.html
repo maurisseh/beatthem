@@ -229,6 +229,64 @@
   }
   .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .hint { font-size: 12px; color: #a9adcf; line-height: 1.5; margin-top: 8px; }
+
+  /* Kategorienanzahl */
+  .cat-stepper {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #14173a; border: 1px solid #23264a; border-radius: 12px;
+    padding: 10px 16px; margin-bottom: 18px; width: fit-content;
+  }
+  .cat-stepper .count { font-family: 'Bebas Neue', sans-serif; font-size: 26px; color: var(--color-secondary); min-width: 28px; text-align: center; }
+  .cat-stepper button:disabled { opacity: .3; cursor: default; }
+  .turn-bar .winner-btn { margin-left: auto; }
+
+  /* Bretter */
+  .board-switch {
+    display: flex; align-items: center; gap: 8px;
+    background: #14173a; padding: 6px 12px; border-radius: 10px;
+    font-size: 13px; color: #a9adcf; font-weight: 600;
+  }
+  .board-switch select { max-width: 260px; }
+  .board-tools {
+    max-width: 1400px; margin: -6px auto 14px; display: flex; align-items: center; gap: 12px;
+    font-size: 13px; color: #a9adcf;
+  }
+  .board-tools b { color: var(--color-secondary); }
+  .board-toolbar {
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;
+    background: #14173a; border: 1px solid #23264a; border-radius: 12px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+  .board-toolbar .tb-group { min-width: 120px; }
+  .board-toolbar .tb-group label { margin-bottom: 3px; }
+  .board-toolbar input[type=text], .board-toolbar select { width: 100%; }
+  .board-toolbar .tb-actions { display: flex; gap: 8px; margin-left: auto; }
+
+  .import-box {
+    background: #14173a; border: 1px solid #23264a; border-radius: 12px;
+    padding: 10px 16px 14px; margin-bottom: 18px;
+  }
+  .import-box summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+  .import-box code { background: #0b0d22; border: 1px solid #2a2e55; border-radius: 6px; padding: 1px 6px; color: var(--color-secondary); font-size: 12px; }
+  .import-box textarea {
+    width: 100%; margin: 10px 0 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5;
+    white-space: pre; overflow-x: auto;
+  }
+  .import-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .check-label { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
+  .import-result { margin-top: 10px; font-size: 13px; line-height: 1.6; }
+  .import-result .ok { color: #4caf7d; font-weight: 700; }
+  .import-result .warn { color: #f1c40f; }
+  .import-result ul { margin: 6px 0 0; padding-left: 20px; }
+
+  .setup-cat .cat-head { display: flex; gap: 8px; margin-bottom: 12px; }
+  .setup-cat .cat-head input.cat-name { margin-bottom: 0; flex: 1; }
+  .setup-cat .cat-head button { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+  .q-media { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12px; color: #a9adcf; }
+  .q-media img { height: 38px; max-width: 70px; object-fit: contain; border-radius: 6px; border: 1px solid #3b3f66; background: #0b0d22; }
+  .q-media .mname { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mod-q-img { max-height: 160px; max-width: 100%; border-radius: 10px; margin-top: 10px; }
 </style>
 </head>
 <body class="moderator-body">
@@ -247,9 +305,9 @@
   <div class="app-header">
     <h1>🎬 BEAT THE M — MODERATOR</h1>
     <div class="header-right">
-      <div class="round-switch">
-        <button id="round1-btn" onclick="setRound(1)">Runde 1</button>
-        <button id="round2-btn" onclick="setRound(2)">Runde 2 (x2)</button>
+      <div class="board-switch">
+        <span>Live-Brett:</span>
+        <select id="board-select" onchange="setActiveBoard(this.value)"></select>
       </div>
     </div>
   </div>
@@ -264,15 +322,45 @@
   <!-- BOARD TAB -->
   <div class="tab-panel active" id="panel-board">
     <div class="turn-bar" id="turn-bar"></div>
+    <div class="board-tools" id="board-tools"></div>
     <div id="mod-board-area"></div>
   </div>
 
   <!-- SETUP TAB -->
   <div class="tab-panel" id="panel-setup">
-    <p style="color:#a9adcf; margin-bottom:16px;">
-      Bearbeite hier die Kategorienamen sowie Fragen &amp; Antworten der aktuell gewählten Runde
-      (oben rechts umschaltbar). Änderungen werden automatisch gespeichert.
-    </p>
+    <div class="board-toolbar" id="board-toolbar"></div>
+
+    <details class="import-box" id="import-box">
+      <summary>📝 Schnell-Import per Text — ganzes Brett auf einmal einfügen</summary>
+      <p class="hint">
+        Pro Zeile eine Frage im Format <code>K&lt;Kategorie&gt;:F&lt;Frage&gt;: "Frage" , "Antwort"</code>.
+        Kategorienamen mit <code>K1: Name</code>, Brettname mit <code>BRETT: Name</code>.
+        Für ein <b>Bild</b> als dritten Wert den Dateinamen angeben:
+        <code>K2:F1: "Welches Land?" , "Deutschland" , "deutschland.png"</code> —
+        die Bilder dazu oben bei „Bilder hinzufügen“ auswählen (mehrere auf einmal möglich).
+        Fehlende Kategorien werden automatisch angelegt (bis 8). Zeilen mit <code>#</code> sind Kommentare.
+      </p>
+      <textarea id="import-text" rows="12" spellcheck="false"
+        placeholder='BRETT: Mein Brett&#10;K1: Geografie&#10;K1:F1: "Hauptstadt von Frankreich?" , "Paris"&#10;K1:F2: "Längster Fluss der Erde?" , "Nil"'></textarea>
+      <div class="import-row">
+        <label class="btn-secondary avatar-btn">🖼 Bilder hinzufügen
+          <input type="file" multiple accept="image/*" class="hidden" onchange="onImportImages(event)">
+        </label>
+        <span class="hint" id="import-pool-info" style="margin:0;">Bilder-Pool: leer</span>
+        <button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="clearImportPool()">Pool leeren</button>
+      </div>
+      <div class="import-row">
+        <label class="check-label"><input type="checkbox" id="import-replace"> Brett vorher komplett leeren (sonst werden nur die genannten Felder überschrieben)</label>
+      </div>
+      <div class="import-row">
+        <button class="btn-primary" onclick="runImport()">⬇ In dieses Brett importieren</button>
+        <button class="btn-secondary" onclick="loadBoardAsText()">Aktuelles Brett als Text laden</button>
+        <button class="btn-secondary" onclick="insertImportExample()">Beispiel einfügen</button>
+      </div>
+      <div class="import-result" id="import-result"></div>
+    </details>
+
+    <div class="cat-stepper" id="cat-stepper"></div>
     <div class="setup-grid" id="setup-grid"></div>
   </div>
 
@@ -362,10 +450,24 @@
       </div>
 
       <div class="settings-card">
+        <h3>Spielende</h3>
+        <div class="field">
+          <label><input type="checkbox" id="autoWinner" onchange="updateSetting('autoWinner', this.checked)"> Gewinner-Animation automatisch starten</label>
+          <div class="hint">Startet, sobald <b>jede befüllte Frage aller Bretter</b> abgehakt und die letzte geschlossen ist (leere Fragen/Bretter zählen nicht mit).
+            Der Gewinner (meiste Punkte, bei Gleichstand alle Punktbesten) wird groß im Overlay gezeigt.
+            Manuell geht es jederzeit über den Knopf im Tab „Spielbrett“.</div>
+        </div>
+      </div>
+
+      <div class="settings-card">
         <h3>Links für OBS</h3>
         <p style="font-size:13px; color:#a9adcf; margin-bottom:8px;">Diese Adresse als "Browser-Quelle" in OBS einfügen:</p>
         <div class="link-box" id="overlay-link"></div>
         <p style="font-size:13px; color:#a9adcf; margin:12px 0 8px;">Empfohlene Größe: 1920×1080, Hintergrund transparent (kein Häkchen bei "Hintergrundbild" nötig).</p>
+        <p style="font-size:13px; color:#a9adcf; margin:16px 0 8px;"><b>9:16-Handyformat (TikTok/Reels)</b> — eigene Browser-Quelle, Größe <b>1080×1920</b>:</p>
+        <div class="link-box" id="overlay-mobile-link"></div>
+        <p class="hint">Oben deine Facecam (in OBS auf x 40, y 76, 1000×620 legen), in der Mitte die Frage, unten nur die Spieler-Icons.
+          Mit <code>?scores=1</code> am Ende der Adresse stehen unter den Icons zusätzlich Name und Punkte. Das Hintergrundbild wird hier nicht verwendet (transparent).</p>
       </div>
 
       <div class="settings-card">
@@ -384,7 +486,7 @@
       <div class="settings-card">
         <h3>Gefahrenzone</h3>
         <div class="toolbar-danger">
-          <button class="btn-danger" onclick="if(confirm('Board zurücksetzen (alle Fragen wieder offen)?')) sendAction('RESET_BOARD')">Board zurücksetzen</button>
+          <button class="btn-danger" onclick="if(confirm('ALLE Bretter zurücksetzen (alle Fragen wieder offen)?')) sendAction('RESET_BOARD')">Alle Bretter zurücksetzen</button>
           <button class="btn-danger" onclick="if(confirm('WIRKLICH alles zurücksetzen? Das löscht Fragen, Spieler und Einstellungen!')) sendAction('FULL_RESET')">Komplett-Reset</button>
         </div>
       </div>

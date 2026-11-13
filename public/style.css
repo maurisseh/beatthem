@@ -161,9 +161,20 @@ label { font-size: 13px; color: #a9adcf; font-weight: 600; display: block; margi
 }
 
 .cell.answered {
-  opacity: 0.28;
-  color: #666;
-  filter: grayscale(1);
+  /* deckendes Grau (nicht transparent), dezente Diagonalstriche, durchgestrichene Punktzahl */
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.06) 0 5px, rgba(255,255,255,0) 5px 14px),
+    linear-gradient(160deg, #5b6075, #383c50);
+  border-color: #7b8099;
+  color: #9ba0b8;
+  text-decoration: line-through;
+  text-decoration-thickness: 4px;
+  text-decoration-color: rgba(20, 22, 38, .55);
+  opacity: 1;
+  filter: none;
+  animation: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 3px 10px rgba(0,0,0,.4);
+  cursor: default;
 }
 
 /* ---------------- Einstellbarer Glow (Kategorien, Fragen, Kacheln) ---------------- */
@@ -294,8 +305,14 @@ body.no-glow .facecam-frame {
   object-position: center;
 }
 
-/* Deine Facecam: nur Rahmen, Fläche bleibt transparent (siehe .facecam-frame) */
-.stage-hostcam { position: absolute; }
+/* Deine Facecam: dicker Rahmen, Fläche bleibt transparent (siehe .facecam-frame).
+   Außenradius 36px − Rand 16px = Innenradius 20px → die runden Innenecken überdecken die Kamera-Ecken. */
+.stage-hostcam {
+  position: absolute;
+  border-width: 16px;
+  border-radius: 36px;
+  z-index: 30; /* bleibt auch über der Gewinner-Animation sichtbar */
+}
 
 /* ---- Avatar-Slots ---- */
 .stage-slot {
@@ -335,25 +352,30 @@ body.no-glow .facecam-frame {
 
 .stage-plate {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
   background: rgba(10, 12, 30, .8);
   border: 2px solid var(--player-color, var(--color-secondary));
   border-radius: 10px;
-  padding: 6px 12px;
-  height: 44px;
+  padding: 4px 10px;
+  height: 70px;
 }
 .stage-plate-name {
+  width: 100%;
+  text-align: center;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 22px;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .stage-plate-score {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 30px;
+  font-size: 34px;
   color: var(--color-secondary);
   line-height: 1;
 }

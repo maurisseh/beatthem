@@ -11,7 +11,7 @@ Dieser Block wird am Ende jeder Arbeits-Session aktualisiert. Er ist dafür da,
 dass ein neuer Claude-Chat (oder du selbst) in 10 Sekunden weiß, woran gerade
 gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
 
-**Zuletzt aktualisiert:** nach dem Stage-Umbau im Hauptspiel + Beichten-Modul
+**Zuletzt aktualisiert:** nach Mehrfach-Bretter / Text-Import / Frage-Bilder
 
 **Funktioniert gerade:**
 - ✅ Server (`server.js`) mit modularem State-Schema, inkl. `players[].avatar`,
@@ -24,6 +24,23 @@ gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
   auch mit Hintergrundbild), aktiver Spieler **blinkt** in seiner Farbe
 - ✅ Moderator: Logo-Upload + Facecam-Schalter (Einstellungen), Avatar-Upload
   pro Spieler (Tab „Spieler“), „Wer ist dran?“-Leiste im Tab „Spielbrett“
+- ✅ **Facecam-Rahmen** dick (16 px) mit runden Innenecken; die Webcam wird in OBS
+  auf den Innenbereich gelegt: **x 720, y 794, 480 × 270** (bei 1920 × 1080)
+- ✅ Spielernamen im Avatar-Schild mittig, Punktestand darunter
+- ✅ **9:16-Handy-Overlay** (`public/overlay-mobile.html` + `overlay-mobile.js`, 1080 × 1920, für TikTok-Clips):
+  oben Facecam (Kamera-Innenbereich x 40, y 76, 1000 × 620), Mitte Frage (Text/Bild/Antwort, Schrift passt sich
+  der Länge an; ohne Frage: Logo + Brettname), unten nur Spieler-Icons (aktiver blinkt); `?scores=1` zeigt
+  zusätzlich Name + Punkte; schlichte Gewinner-Ansicht mit Konfetti. Nutzt denselben State wie das Haupt-Overlay.
+- ✅ **Mehrere Bretter** (statt fester Runde 1/2): anlegen, benennen, löschen, live schalten
+  (Header-Auswahl); Kategorienanzahl (1–8) und Punktwerte/Zeilen (1–8) pro Brett einstellbar
+- ✅ **Text-Import**: ganzes Brett per Text füllen (`K1:F1: "Frage" , "Antwort"`), inkl. Export als Text
+- ✅ **Bilder bei Fragen** (z. B. Flaggen): pro Frage, per Text-Import mit Bilder-Pool oder per
+  „Bilder-Stapel“ je Kategorie; Overlay zeigt das Bild in der Frage-Karte
+- ✅ Abgehakte Fragen: deckendes Grau mit Diagonalstrichen, Zahl durchgestrichen
+- ✅ **Gewinner-Animation** (Strahlen, Konfetti, großer Avatar): startet automatisch,
+  sobald **jede befüllte Frage (Text oder Bild) aller Bretter** abgehakt und die letzte geschlossen ist
+  — leere Fragen/Bretter zählen nicht (abschaltbar: Einstellungen → „Spielende“); manuell per Knopf im Tab „Spielbrett“
+  (`SHOW_WINNER`/`HIDE_WINNER`). Bei Gleichstand werden alle Punktbesten gezeigt.
 - ✅ **Beichten** (`public/games/beichten/`): `moderator.html` (50 Beichten
   eintragen), `overlay.html` (Klick = aufdecken, Pfeile/Tasten = blättern);
   eigenes Login mit eigenem Token-Key (`beichten_auth_token`)
@@ -242,7 +259,8 @@ Der komplette Anwendungszustand ist ein einziges JSON-Objekt. Aktuelle Struktur
     "glowEnabled": true,
     "glowColor": "#f5c518",
     "glowBlur": 18,                     // px
-    "glowIntensity": 70                 // 0–100 %
+    "glowIntensity": 70,                // 0–100 %
+    "autoWinner": true                  // Gewinner-Animation automatisch nach der letzten Frage
   },
 
   "activePlayerId": null,               // id des Spielers, der gerade "dran" ist (Glow-Highlight, geplant)
@@ -251,11 +269,12 @@ Der komplette Anwendungszustand ist ein einziges JSON-Objekt. Aktuelle Struktur
 
   "games": {
     "jeopardy": {
-      "round": 1,                       // 1 oder 2
-      "round1": [ /* 6 Kategorien */ ],
-      "round2": [ /* 6 Kategorien, Runde 2 = doppelte Punkte */ ],
-      "activeQuestion": null,           // { round, catId, qId } oder null
-      "showAnswer": false
+      "boards": [ /* beliebig viele Bretter, siehe unten */ ],
+      "activeBoardId": "uuid",          // welches Brett gerade live im Overlay ist
+      "activeQuestion": null,           // { boardId, catId, qId } oder null
+      "showAnswer": false,
+      "winnerShown": false,             // Gewinner-Animation im Overlay aktiv?
+      "winnerTs": 0                     // Zeitstempel (startet die Animation neu)
     },
     "emoji": {
       "puzzles": [ /* siehe unten */ ],
@@ -285,26 +304,43 @@ Der komplette Anwendungszustand ist ein einziges JSON-Objekt. Aktuelle Struktur
 }
 ```
 
-### Kategorie-/Fragen-Objekt (Jeopardy)
+### Brett-/Kategorie-/Fragen-Objekt (Jeopardy)
 
 ```jsonc
 {
   "id": "uuid",
-  "name": "Kategorie 1",
-  "questions": [
+  "name": "Runde 1",                  // Brettname (erscheint im Overlay oben rechts)
+  "values": [100, 200, 300, 400, 500],// Punktwerte = Zeilen (1–8)
+  "categories": [                     // 1–8 Kategorien
     {
       "id": "uuid",
-      "value": 100,               // Punktwert (100–500 Runde 1, 200–1000 Runde 2)
-      "question": "",
-      "answer": "",
-      "answered": false,
-      "mediaType": "none",       // "none" | "image" | "audio"
-      "mediaData": ""            // dataURL, falls mediaType ≠ "none"
+      "name": "Kategorie 1",
+      "questions": [
+        {
+          "id": "uuid",
+          "value": 100,
+          "question": "",
+          "answer": "",
+          "answered": false,
+          "mediaType": "none",        // "none" | "image" (audio ist vorgesehen, noch ohne UI)
+          "mediaData": "",            // dataURL — wird NICHT über SSE/GET /api/state verschickt
+          "mediaName": "",            // ursprünglicher Dateiname (für Text-Export/-Import)
+          "mediaVer": 0               // Zeitstempel der letzten Bildänderung (Cache-Busting)
+        }
+        // … je Punktwert eine Frage
+      ]
     }
-    // … 5 Fragen pro Kategorie
   ]
 }
 ```
+
+**Bilder:** Fragen-Bilder liegen als dataURL im Server-State (und damit in `state.json`/Backup),
+werden aber nicht in jedem Live-Update mitgeschickt. Das Overlay lädt sie einzeln über
+`GET /media/q/<frageId>?v=<mediaVer>` (vom Browser gecached). Der Moderator verkleinert Bilder
+vor dem Upload auf max. 800 × 600 px.
+
+**Migration:** Spielstände im alten Format (`round1`/`round2`) werden beim Laden automatisch
+in zwei Bretter („Runde 1“, „Runde 2“) umgewandelt; Fragen, Punkte und offene Frage bleiben erhalten.
 
 ### Rätsel-Objekt (Emoji-Rätsel-Spiel)
 
@@ -336,7 +372,8 @@ gespeicherten Show (`/api/shows/load`) und beim Import eines Backups
 
 | Methode & Pfad | Beschreibung |
 |---|---|
-| `GET /api/state` | Gibt den kompletten aktuellen State als JSON zurück |
+| `GET /api/state` | Aktueller State als JSON **ohne** Fragen-Bilddaten (`mediaData` leer); `?full=1` liefert alles inkl. Bilder (für Backup/Export) |
+| `GET /media/q/<frageId>` | Bild einer Frage als normale Bilddatei (404, wenn keins gesetzt) |
 | `GET /api/events` | Server-Sent-Events-Stream; sendet bei jeder Änderung den kompletten neuen State |
 | `POST /api/login` | Body `{ password }` → bei Erfolg `{ ok:true, token }` |
 | `GET /api/validate` | Prüft, ob der mitgesendete Token (`x-auth-token`-Header) noch gültig ist |
@@ -381,18 +418,39 @@ Header `x-auth-token` mit.
 | `SET_SCORE` | `{ id, value }` (absolut) |
 | `RESET_SCORES` | – (alle Spieler auf 0) |
 
-**Jeopardy**
+**Jeopardy (mehrere Bretter)**
 | type | payload |
 |---|---|
-| `SET_ROUND` | `{ round: 1\|2 }` |
-| `EDIT_CATEGORY_NAME` | `{ round, catId, name }` |
-| `EDIT_QUESTION` | `{ round, catId, qId, question?, answer? }` |
-| `EDIT_QUESTION_MEDIA` | `{ round, catId, qId, mediaType, mediaData }` |
-| `OPEN_QUESTION` | `{ round, catId, qId }` |
-| `CLOSE_QUESTION` | – |
+| `SET_ACTIVE_BOARD` | `{ boardId }` (Live-Brett im Overlay wechseln) |
+| `ADD_BOARD` | `{ id?, name?, values? }` (neues Brett, 6 leere Kategorien; wird nicht automatisch live) |
+| `DELETE_BOARD` | `{ boardId }` (mindestens ein Brett bleibt) |
+| `RENAME_BOARD` | `{ boardId, name }` |
+| `SET_BOARD_VALUES` | `{ boardId, values:[100,200,…] }` (1–8 Punktwerte = Zeilen; passt alle Kategorien an) |
+| `ADD_CATEGORY` / `REMOVE_CATEGORY` | `{ boardId }` / `{ boardId, catId }` (1–8 Kategorien) |
+| `EDIT_CATEGORY_NAME` | `{ boardId, catId, name }` |
+| `EDIT_QUESTION` | `{ boardId, catId, qId, question?, answer? }` |
+| `EDIT_QUESTION_MEDIA` | `{ boardId, catId, qId, mediaType, mediaData, mediaName }` (`mediaData: ''` entfernt das Bild) |
+| `IMPORT_BOARD` | `{ boardId, replace?, boardName?, categories:{"1":"Name"}, questions:[{ k, f, question?, answer?, media?:{ name, dataUrl } }] }` (Text-Import; legt fehlende Kategorien an; ein noch leeres Brett wird auf die genutzten Kategorien zugeschnitten) |
+| `OPEN_QUESTION` | `{ boardId, catId, qId }` |
+| `CLOSE_QUESTION` | – (startet ggf. automatisch die Gewinner-Animation) |
 | `TOGGLE_ANSWER` | – (blendet Antwort der offenen Frage ein/aus) |
-| `MARK_ANSWERED` | `{ round, catId, qId, answered }` |
-| `RESET_BOARD` | – (alle Fragen wieder „offen", Punkte bleiben) |
+| `MARK_ANSWERED` | `{ boardId, catId, qId, answered }` |
+| `RESET_BOARD` | `{ boardId? }` (ohne `boardId`: alle Bretter; Punkte bleiben; blendet Gewinner aus) |
+| `SHOW_WINNER` / `HIDE_WINNER` | – (Gewinner-Animation manuell ein/aus; automatisch via `settings.autoWinner`) |
+
+**Text-Import-Format** (im Moderator, Tab „Fragen & Kategorien“ → „Schnell-Import per Text“; wird im Browser
+geparst, dann als `IMPORT_BOARD` gesendet):
+```
+BRETT: Mein Brett                         # optional: Brettname
+K1: Geografie                             # Kategoriename
+K1:F1: "Hauptstadt von Frankreich?" , "Paris"
+K2:F1: "Welches Land ist das?" , "Deutschland" , "deutschland.png"   # 3. Wert = Bild aus dem Bilder-Pool
+```
+Kommas in Anführungszeichen sind erlaubt, `""` oder `\"` ergibt ein Anführungszeichen, `\n` einen Zeilenumbruch,
+typografische Anführungszeichen (`„…“`) und Felder ohne Anführungszeichen funktionieren auch. Bilder werden
+über den Dateinamen zugeordnet (Groß-/Kleinschreibung, Endung und Sonderzeichen egal). Pro Kategorie gibt es
+außerdem den Knopf „🖼 Bilder-Stapel“: mehrere Bilder wählen → jedes wird eine Frage, die Antwort wird aus dem
+Dateinamen gebildet. „Aktuelles Brett als Text laden“ erzeugt das Format aus dem bestehenden Brett.
 
 **Emoji-Rätsel**
 | type | payload |
