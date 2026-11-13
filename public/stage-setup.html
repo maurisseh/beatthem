@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stage-Setup — Beat the M</title>
+<link rel="stylesheet" href="/style.css" />
+<style>
+  body { padding: 24px 28px 60px; max-width: 1500px; margin: 0 auto; }
+  h1 { font-size: 34px; margin-bottom: 4px; }
+  .sub { color: #a9adcf; font-size: 14px; margin-bottom: 22px; }
+
+  .layout { display: grid; grid-template-columns: 420px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: #14173a; border: 1px solid #3b3f66; border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 16px;
+  }
+  .panel h3 { font-size: 22px; margin-bottom: 10px; color: var(--color-secondary); }
+  .hint { font-size: 12px; color: #a9adcf; margin-top: 8px; line-height: 1.5; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .logo-preview {
+    margin-top: 10px; height: 80px; border: 1px dashed #3b3f66; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: repeating-conic-gradient(#1b1f47 0% 25%, #14173a 0% 50%) 50% / 20px 20px;
+    overflow: hidden;
+  }
+  .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+  .player {
+    display: grid; grid-template-columns: 64px 1fr; gap: 12px;
+    padding: 10px 0; border-top: 1px solid #262a4d;
+  }
+  .player:first-of-type { border-top: none; }
+  .player .thumb {
+    width: 64px; height: 64px; border-radius: 10px; border: 3px solid var(--pc);
+    background: #0b0d22; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .player .thumb img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+  .player .thumb span { color: var(--pc); font-family: 'Bebas Neue', sans-serif; font-size: 30px; opacity: .6; }
+  .player .pname { font-weight: 700; margin-bottom: 6px; }
+  .player .pname small { color: #a9adcf; font-weight: 500; }
+  .player button { font-size: 12px; padding: 6px 10px; }
+  .btn-on { background: var(--color-secondary) !important; color: #1a1a1a !important; }
+
+  .preview-wrap {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+    border: 1px solid #3b3f66; border-radius: 12px;
+    background: radial-gradient(circle at top, #1a1e4d 0%, #070815 75%);
+  }
+  .preview-wrap .stage-root { position: absolute; top: 0; left: 0; }
+
+  .login { max-width: 360px; margin: 120px auto; background: #14173a; border: 1px solid #3b3f66;
+           border-radius: 14px; padding: 28px; text-align: center; }
+  .login input { width: 100%; margin: 12px 0; text-align: center; }
+  .login .err { color: #e74c3c; font-size: 13px; min-height: 16px; }
+</style>
+</head>
+<body class="moderator-body">
+
+<div id="loginRoot"></div>
+
+<div id="appRoot" class="hidden">
+  <h1>🎛️ Stage-Setup</h1>
+  <div class="sub">Logo, Avatare und deine Facecam-Umrandung. Änderungen sind sofort live im Overlay.</div>
+
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <h3>Logo (PNG)</h3>
+        <div class="row">
+          <input type="file" id="logoFile" accept="image/png,image/webp,image/svg+xml,image/jpeg" />
+          <button class="btn-danger" id="logoRemove">Entfernen</button>
+        </div>
+        <div class="logo-preview" id="logoPreview"><span class="hint">kein Logo</span></div>
+        <div class="hint">Empfohlen: <b>PNG mit transparentem Hintergrund, ca. 800 × 160 px</b> (5:1).
+          Wird oben mittig angezeigt und automatisch eingepasst.</div>
+      </div>
+
+      <div class="panel">
+        <h3>Deine Facecam</h3>
+        <label class="row" style="color:#eef1ff;font-size:14px">
+          <input type="checkbox" id="hostCamToggle" />
+          Facecam-Umrandung unten Mitte anzeigen
+        </label>
+        <div class="hint">16:9-Rahmen (480 × 270 bei 1920 × 1080), bündig am unteren Rand.
+          Die Fläche innerhalb ist transparent — leg deine Webcam in OBS genau dort drauf.</div>
+      </div>
+
+      <div class="panel">
+        <h3>Spieler-Avatare</h3>
+        <div id="players"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-secondary" id="nobodyBtn">Niemand dran</button>
+        </div>
+        <div class="hint">PNG (z. B. aus der Quiz Arena exportiert), bis 512 × 512 px, quadratisch.
+          Es werden die ersten 4 Spieler angezeigt. Spieler anlegen/umbenennen weiterhin im Moderator-Tab „Spieler“.
+          „Dran“ lässt den Avatar im Overlay aufblinken.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3>Live-Vorschau</h3>
+        <div class="preview-wrap" id="previewWrap">
+          <div id="stage"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/stage.js"></script>
+<script>
+  // ---- Auth (gleicher Token-Key wie die Beichten-Seiten → einmal einloggen reicht) ----
+  const TOKEN_KEY = 'beichten_auth_token';
+  const token = () => localStorage.getItem(TOKEN_KEY) || '';
+
+  async function validate() {
+    if (!token()) return false;
+    try {
+      const r = await fetch('/api/validate', { headers: { 'x-auth-token': token() } });
+      return !!(await r.json()).ok;
+    } catch (e) { return false; }
+  }
+
+  async function send(type, payload) {
+    const r = await fetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': token() },
+      body: JSON.stringify({ type, payload })
+    });
+    if (r.status === 401) { localStorage.removeItem(TOKEN_KEY); showLogin(); return null; }
+    return r.json();
+  }
+
+  const loginRoot = document.getElementById('loginRoot');
+  const appRoot = document.getElementById('appRoot');
+
+  function showLogin() {
+    appRoot.classList.add('hidden');
+    loginRoot.innerHTML = `
+      <div class="login">
+        <h2>🔒 Stage-Setup</h2>
+        <input type="password" id="pw" placeholder="Moderator-Passwort" />
+        <button class="btn-primary" id="go">Anmelden</button>
+        <div class="err" id="err"></div>
+      </div>`;
+    const pw = document.getElementById('pw');
+    async function submit() {
+      const r = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw.value })
+      });
+      const d = await r.json();
+      if (d.ok) { localStorage.setItem(TOKEN_KEY, d.token); startApp(); }
+      else document.getElementById('err').textContent = 'Falsches Passwort.';
+    }
+    document.getElementById('go').onclick = submit;
+    pw.onkeydown = e => { if (e.key === 'Enter') submit(); };
+    pw.focus();
+  }
+
+  // ---- Bild einlesen + verkleinern (Transparenz bleibt erhalten) ----
+  function readImage(file, maxW, maxH, pixelArt) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const scale = Math.min(1, maxW / img.width, maxH / img.height);
+          if (scale === 1 && file.type === 'image/png') return resolve(reader.result); // unverändert lassen
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          const ctx = c.getContext('2d');
+          ctx.imageSmoothingEnabled = !pixelArt;
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/png'));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---- UI ----
+  const logoFile = document.getElementById('logoFile');
+  const logoPreview = document.getElementById('logoPreview');
+  const hostCamToggle = document.getElementById('hostCamToggle');
+  const playersEl = document.getElementById('players');
+  const previewWrap = document.getElementById('previewWrap');
+  let stageCanvas = null;
+
+  logoFile.addEventListener('change', async () => {
+    const f = logoFile.files[0];
+    if (!f) return;
+    const data = await readImage(f, 1200, 300, false);
+    await send('SET_SETTINGS', { logoImage: data });
+    logoFile.value = '';
+  });
+  document.getElementById('logoRemove').onclick = () => send('SET_SETTINGS', { logoImage: '' });
+  hostCamToggle.onchange = () => send('SET_SETTINGS', { showModeratorCam: hostCamToggle.checked });
+  document.getElementById('nobodyBtn').onclick = () => send('SET_ACTIVE_PLAYER', { id: null });
+
+  function renderPlayers(state) {
+    playersEl.innerHTML = '';
+    state.players.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'player';
+      row.style.setProperty('--pc', p.color);
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      if (p.avatar) { const im = document.createElement('img'); im.src = p.avatar; thumb.appendChild(im); }
+      else { const sp = document.createElement('span'); sp.textContent = '?'; thumb.appendChild(sp); }
+
+      const info = document.createElement('div');
+      const nm = document.createElement('div');
+      nm.className = 'pname';
+      nm.textContent = p.name + ' ';
+      if (i >= 4) { const sm = document.createElement('small'); sm.textContent = '(wird nicht angezeigt — nur 4 Plätze)'; nm.appendChild(sm); }
+      info.appendChild(nm);
+
+      const ctrl = document.createElement('div');
+      ctrl.className = 'row';
+
+      const file = document.createElement('input');
+      file.type = 'file'; file.accept = 'image/png,image/webp,image/jpeg';
+      file.style.maxWidth = '200px';
+      file.onchange = async () => {
+        if (!file.files[0]) return;
+        const data = await readImage(file.files[0], 512, 512, true);
+        send('UPDATE_PLAYER', { id: p.id, avatar: data });
+      };
+
+      const rm = document.createElement('button');
+      rm.className = 'btn-secondary'; rm.textContent = '✕';
+      rm.title = 'Avatar entfernen';
+      rm.onclick = () => send('UPDATE_PLAYER', { id: p.id, avatar: '' });
+
+      const turn = document.createElement('button');
+      turn.className = 'btn-secondary' + (state.activePlayerId === p.id ? ' btn-on' : '');
+      turn.textContent = state.activePlayerId === p.id ? '● Dran' : 'Dran';
+      turn.onclick = () => send('SET_ACTIVE_PLAYER', { id: state.activePlayerId === p.id ? null : p.id });
+
+      ctrl.append(file, rm, turn);
+      info.appendChild(ctrl);
+      row.append(thumb, info);
+      playersEl.appendChild(row);
+    });
+  }
+
+  function onState(state) {
+    const s = state.settings;
+    document.documentElement.style.setProperty('--color-secondary', s.secondaryColor || '#f5c518');
+    document.documentElement.style.setProperty('--color-primary', s.primaryColor || '#0b1f6b');
+
+    hostCamToggle.checked = s.showModeratorCam !== false;
+    logoPreview.innerHTML = s.logoImage ? '' : '<span class="hint">kein Logo</span>';
+    if (s.logoImage) { const im = document.createElement('img'); im.src = s.logoImage; logoPreview.appendChild(im); }
+
+    renderPlayers(state);
+    Stage.update(state);
+  }
+
+  function startApp() {
+    loginRoot.innerHTML = '';
+    appRoot.classList.remove('hidden');
+    stageCanvas = document.getElementById('stage');
+    Stage.init(stageCanvas);
+    const refit = () => Stage.fit(stageCanvas);
+    window.addEventListener('resize', refit);
+    refit();
+
+    fetch('/api/state').then(r => r.json()).then(onState);
+    const es = new EventSource('/api/events');
+    es.onmessage = ev => { try { onState(JSON.parse(ev.data)); } catch (e) {} };
+  }
+
+  validate().then(ok => ok ? startApp() : showLogin());
+</script>
+</body>
+</html>

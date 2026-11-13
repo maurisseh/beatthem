@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Beichten</title>
+<link rel="stylesheet" href="/style.css" />
+<style>
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+  body.beichten-viewer-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #14173a 0%, #05060f 70%);
+  }
+
+  .beichten-stage {
+    position: relative;
+    width: min(90vw, 900px);
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .nav-btn {
+    background: rgba(20,23,58,.85);
+    border: 2px solid var(--color-secondary);
+    color: var(--color-secondary);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav-btn:hover { background: rgba(59,63,102,.9); }
+  .nav-btn:disabled { opacity: .3; cursor: default; }
+
+  .beichte-card {
+    flex: 1;
+    min-height: 380px;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+  }
+
+  .beichte-card .beichte-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44px;
+    color: var(--color-secondary);
+    letter-spacing: 1px;
+  }
+
+  .beichte-card .hint {
+    font-size: 13px;
+    color: #a9adcf;
+    margin-top: 4px;
+  }
+
+  .beichte-card .beichte-text {
+    font-size: clamp(20px, 2.4vw, 30px);
+    font-weight: 700;
+    line-height: 1.4;
+    max-width: 640px;
+  }
+
+  .beichte-text.empty {
+    color: #6a6f9c;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 18px;
+  }
+
+  .progress {
+    position: absolute;
+    bottom: -34px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #6a6f9c;
+    font-size: 13px;
+  }
+
+  .login-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body class="beichten-viewer-body">
+
+  <div id="loginRoot" class="login-wrap"></div>
+
+  <div id="appRoot" class="beichten-stage hidden">
+    <button class="nav-btn" id="prevBtn">◀</button>
+
+    <div class="question-card beichte-card" id="card">
+      <div class="beichte-num" id="cardNum">Beichte 1</div>
+      <div class="beichte-text" id="cardText"></div>
+      <div class="hint" id="cardHint">Klicken zum Aufdecken</div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <button class="nav-btn" id="nextBtn">▶</button>
+  </div>
+
+<script src="/games/beichten/shared.js"></script>
+<script>
+  const loginRoot = document.getElementById('loginRoot');
+  const appRoot = document.getElementById('appRoot');
+  const card = document.getElementById('card');
+  const cardNum = document.getElementById('cardNum');
+  const cardText = document.getElementById('cardText');
+  const cardHint = document.getElementById('cardHint');
+  const progress = document.getElementById('progress');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  let latestState = null;
+
+  function showLogin() {
+    appRoot.classList.add('hidden');
+    loginRoot.classList.remove('hidden');
+    beichtenMountLogin(loginRoot, startApp);
+  }
+
+  function startApp() {
+    loginRoot.classList.add('hidden');
+    loginRoot.innerHTML = '';
+    appRoot.classList.remove('hidden');
+    beichtenConnectLiveState(onState);
+  }
+
+  function onState(state) {
+    latestState = state;
+    const b = state.games.beichten;
+    const activeCard = b.cards[b.activeIndex];
+    if (!activeCard) return;
+
+    cardNum.textContent = `Beichte ${activeCard.index}`;
+    progress.textContent = `${b.activeIndex + 1} / ${b.cards.length}`;
+
+    if (b.revealed) {
+      if (activeCard.text && activeCard.text.trim()) {
+        cardText.textContent = activeCard.text;
+        cardText.classList.remove('empty');
+      } else {
+        cardText.textContent = '(noch kein Text eingetragen)';
+        cardText.classList.add('empty');
+      }
+      cardHint.textContent = 'Klicken zum Verstecken';
+    } else {
+      cardText.textContent = '';
+      cardText.classList.remove('empty');
+      cardHint.textContent = 'Klicken zum Aufdecken';
+    }
+
+    prevBtn.disabled = b.activeIndex <= 0;
+    nextBtn.disabled = b.activeIndex >= b.cards.length - 1;
+  }
+
+  function reveal() {
+    beichtenSendAction('BEICHTE_REVEAL', {}, showLogin);
+  }
+  function prev() {
+    beichtenSendAction('BEICHTE_PREV', {}, showLogin);
+  }
+  function next() {
+    beichtenSendAction('BEICHTE_NEXT', {}, showLogin);
+  }
+
+  card.addEventListener('click', reveal);
+  prevBtn.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
+  nextBtn.addEventListener('click', (e) => { e.stopPropagation(); next(); });
+
+  document.addEventListener('keydown', (e) => {
+    if (appRoot.classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') prev();
+    else if (e.key === 'ArrowRight') next();
+    else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); reveal(); }
+  });
+
+  showLogin();
+</script>
+</body>
+</html>

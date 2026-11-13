@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Beichten — Moderator</title>
+<link rel="stylesheet" href="/style.css" />
+<style>
+  body { padding: 24px 28px 60px; max-width: 1200px; margin: 0 auto; }
+
+  .beichten-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .beichten-topbar h1 { font-size: 34px; }
+  .beichten-topbar .sub { color: #a9adcf; font-size: 14px; margin-top: 4px; }
+
+  .beichten-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #14173a;
+    border: 1px solid #3b3f66;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .beichten-controls .status { font-size: 14px; color: #a9adcf; min-width: 170px; }
+  .beichten-controls .status b { color: var(--color-secondary); }
+
+  .beichten-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .beichten-card {
+    background: #14173a;
+    border: 1px solid #3b3f66;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .beichten-card.is-active {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 1px var(--color-secondary);
+  }
+
+  .beichten-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .beichten-card-head .num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--color-secondary);
+    letter-spacing: 0.5px;
+  }
+  .beichten-card-head button {
+    background: #262a4d;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .beichten-card-head button:hover { background: #3b3f66; }
+
+  .beichten-card textarea {
+    width: 100%;
+    min-height: 64px;
+    font-size: 13px;
+  }
+
+  .beichten-card .saved-hint {
+    font-size: 11px;
+    color: #4caf7d;
+    height: 14px;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .beichten-card .saved-hint.show { opacity: 1; }
+
+  .beichten-login {
+    max-width: 360px;
+    margin: 120px auto;
+    background: #14173a;
+    border: 1px solid #3b3f66;
+    border-radius: 14px;
+    padding: 28px;
+    text-align: center;
+  }
+  .beichten-login h2 { margin-bottom: 8px; }
+  .beichten-login p { color: #a9adcf; font-size: 13px; margin-bottom: 16px; }
+  .beichten-login input { width: 100%; margin-bottom: 12px; text-align: center; }
+  .beichten-login .beichten-login-error { color: #e74c3c; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  a.viewer-link {
+    color: var(--color-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  a.viewer-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body class="moderator-body">
+
+  <div id="loginRoot"></div>
+
+  <div id="appRoot" class="hidden">
+    <div class="beichten-topbar">
+      <div>
+        <h1>🤫 Beichten</h1>
+        <div class="sub">
+          Text hier eintragen — Speicherung läuft automatisch.
+          Viewer-Ansicht zum Aufdecken/Navigieren:
+          <a class="viewer-link" href="/games/beichten/overlay.html" target="_blank">/games/beichten/overlay.html ↗</a>
+        </div>
+      </div>
+      <div class="beichten-controls">
+        <button class="btn-icon" id="prevBtn" title="Vorherige">◀</button>
+        <div class="status">
+          Aktiv: <b id="activeNum">–</b> · <span id="revealState">verdeckt</span>
+        </div>
+        <button class="btn-icon" id="nextBtn" title="Nächste">▶</button>
+        <button class="btn-secondary" id="revealBtn">Aufdecken/Verstecken</button>
+      </div>
+    </div>
+
+    <div class="beichten-grid" id="grid"></div>
+  </div>
+
+<script src="/games/beichten/shared.js"></script>
+<script>
+  const loginRoot = document.getElementById('loginRoot');
+  const appRoot = document.getElementById('appRoot');
+  const grid = document.getElementById('grid');
+  const activeNumEl = document.getElementById('activeNum');
+  const revealStateEl = document.getElementById('revealState');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const revealBtn = document.getElementById('revealBtn');
+
+  let latestState = null;
+  let cardEls = {}; // index -> { root, textarea, hint }
+  let saveTimers = {};
+
+  function showLogin() {
+    appRoot.classList.add('hidden');
+    loginRoot.classList.remove('hidden');
+    beichtenMountLogin(loginRoot, startApp);
+  }
+
+  function startApp() {
+    loginRoot.classList.add('hidden');
+    loginRoot.innerHTML = '';
+    appRoot.classList.remove('hidden');
+    beichtenConnectLiveState(onState);
+  }
+
+  function buildGrid(cards) {
+    grid.innerHTML = '';
+    cardEls = {};
+    cards.forEach(card => {
+      const root = document.createElement('div');
+      root.className = 'beichten-card';
+      root.innerHTML = `
+        <div class="beichten-card-head">
+          <span class="num">Beichte ${card.index}</span>
+          <button data-jump="${card.index}">Im Viewer zeigen</button>
+        </div>
+        <textarea placeholder="Text der Beichte ${card.index} …"></textarea>
+        <div class="saved-hint">gespeichert ✓</div>
+      `;
+      grid.appendChild(root);
+      const textarea = root.querySelector('textarea');
+      const hint = root.querySelector('.saved-hint');
+      textarea.value = card.text || '';
+
+      textarea.addEventListener('input', () => {
+        clearTimeout(saveTimers[card.index]);
+        saveTimers[card.index] = setTimeout(() => {
+          beichtenSendAction('SET_BEICHTE_TEXT', { index: card.index, text: textarea.value }, showLogin)
+            .then(() => {
+              hint.classList.add('show');
+              setTimeout(() => hint.classList.remove('show'), 1200);
+            });
+        }, 500);
+      });
+
+      root.querySelector('[data-jump]').addEventListener('click', () => {
+        beichtenSendAction('BEICHTE_SET_INDEX', { index: card.index }, showLogin);
+      });
+
+      cardEls[card.index] = { root, textarea };
+    });
+  }
+
+  function onState(state) {
+    const b = state.games.beichten;
+    latestState = state;
+
+    // Grid nur einmal aufbauen (Anzahl Karten ändert sich nicht) bzw. wenn
+    // sich die Kartenanzahl geändert hat (z. B. nach IMPORT_STATE).
+    if (Object.keys(cardEls).length !== b.cards.length) {
+      buildGrid(b.cards);
+    } else {
+      // Texte aktualisieren, falls von anderswo geändert (aber nicht während
+      // der Nutzer gerade selbst tippt — einfache Heuristik: nur wenn
+      // Feld nicht fokussiert ist)
+      b.cards.forEach(card => {
+        const el = cardEls[card.index];
+        if (el && document.activeElement !== el.textarea && el.textarea.value !== card.text) {
+          el.textarea.value = card.text || '';
+        }
+      });
+    }
+
+    const activeCard = b.cards[b.activeIndex];
+    document.querySelectorAll('.beichten-card.is-active').forEach(el => el.classList.remove('is-active'));
+    if (activeCard && cardEls[activeCard.index]) {
+      cardEls[activeCard.index].root.classList.add('is-active');
+    }
+    activeNumEl.textContent = activeCard ? activeCard.index : '–';
+    revealStateEl.textContent = b.revealed ? 'aufgedeckt' : 'verdeckt';
+  }
+
+  prevBtn.addEventListener('click', () => beichtenSendAction('BEICHTE_PREV', {}, showLogin));
+  nextBtn.addEventListener('click', () => beichtenSendAction('BEICHTE_NEXT', {}, showLogin));
+  revealBtn.addEventListener('click', () => beichtenSendAction('BEICHTE_REVEAL', {}, showLogin));
+
+  showLogin();
+</script>
+</body>
+</html>

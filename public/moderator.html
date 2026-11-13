@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Quizshow — Moderator</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body.moderator-body { padding: 0; }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 26px;
+    background: #0d0f26;
+    border-bottom: 1px solid #23264a;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .app-header h1 {
+    font-size: 26px;
+    color: var(--color-secondary);
+    letter-spacing: 2px;
+  }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .round-switch { display: flex; gap: 6px; background: #14173a; padding: 5px; border-radius: 10px; }
+  .round-switch button.active { background: var(--color-secondary); color: #1a1a1a; }
+  .round-switch button { background: transparent; color: #ccc; padding: 8px 16px; font-size: 13px; }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 26px 0;
+    border-bottom: 1px solid #23264a;
+  }
+  .tab-btn {
+    background: transparent;
+    color: #9296bd;
+    padding: 10px 18px;
+    border-radius: 10px 10px 0 0;
+    font-size: 14px;
+  }
+  .tab-btn.active {
+    background: #14173a;
+    color: #fff;
+    border: 1px solid #23264a;
+    border-bottom: 1px solid #14173a;
+    margin-bottom: -1px;
+  }
+
+  .tab-panel { display: none; padding: 24px 26px 60px; }
+  .tab-panel.active { display: block; }
+
+  /* Board-Tab */
+  #mod-board-area { max-width: 1400px; margin: 0 auto; }
+  .cell.clickable { cursor: pointer; }
+
+  .question-panel {
+    max-width: 700px;
+    margin: 20px auto 0;
+  }
+  .question-panel .controls-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .assign-points {
+    margin-top: 26px;
+    background: rgba(0,0,0,.25);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .assign-points h3 { font-size: 15px; color: #a9adcf; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .assign-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .assign-row .name { flex: 1; font-weight: 700; }
+
+  /* Setup-Tab */
+  .setup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+  }
+  .setup-cat {
+    background: #14173a;
+    border: 1px solid #23264a;
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .setup-cat input[type=text].cat-name {
+    width: 100%;
+    font-weight: 700;
+    margin-bottom: 12px;
+    font-size: 15px;
+  }
+  .setup-q {
+    border-top: 1px solid #23264a;
+    padding: 10px 0;
+  }
+  .setup-q .q-value { color: var(--color-secondary); font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  .setup-q textarea { width: 100%; margin-bottom: 6px; min-height: 44px; }
+
+  /* Spieler-Tab */
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #14173a;
+    border: 1px solid #23264a;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+  .player-card input[type=text] { flex: 1; }
+  .player-card select { flex: 0 0 auto; }
+  .player-score-controls { display: flex; align-items: center; gap: 6px; }
+  .player-score-controls span { min-width: 60px; text-align: center; font-family: 'Bebas Neue'; font-size: 20px; color: var(--color-secondary); }
+
+  /* Einstellungen-Tab */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+  }
+  .settings-card {
+    background: #14173a;
+    border: 1px solid #23264a;
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .settings-card h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #a9adcf; margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+  .color-row { display: flex; align-items: center; gap: 12px; }
+  .bg-preview {
+    width: 100%;
+    height: 100px;
+    border-radius: 10px;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid #3b3f66;
+    margin-bottom: 10px;
+  }
+  .link-box {
+    background: #0d0f26;
+    border: 1px dashed #3b3f66;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #a9adcf;
+    word-break: break-all;
+  }
+  .link-box a { color: var(--color-secondary); }
+
+  .toolbar-danger { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+
+  /* Login-Screen */
+  #login-screen {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at top, #14173a 0%, #05060f 70%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .login-card {
+    background: #14173a;
+    border: 1px solid #23264a;
+    border-radius: 16px;
+    padding: 36px 40px;
+    width: 340px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .login-card h2 { font-size: 30px; color: var(--color-secondary); margin-bottom: 6px; }
+  .login-card p { font-size: 13px; color: #a9adcf; margin-bottom: 20px; }
+  .login-card input[type=password] { width: 100%; margin-bottom: 14px; text-align: center; font-size: 16px; }
+  .login-card .btn-primary { width: 100%; padding: 12px; }
+  .login-error { color: #e74c3c; font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  .import-export-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+</style>
+</head>
+<body class="moderator-body">
+
+  <div id="login-screen">
+    <div class="login-card">
+      <h2>🔒 Moderator-Login</h2>
+      <p>Bitte das Moderator-Passwort eingeben, um das Spiel zu steuern.</p>
+      <input type="password" id="login-password" placeholder="Passwort" onkeydown="if(event.key==='Enter') doLogin()">
+      <button class="btn-primary" onclick="doLogin()">Anmelden</button>
+      <div class="login-error" id="login-error"></div>
+    </div>
+  </div>
+
+  <div id="app-root" class="hidden">
+  <div class="app-header">
+    <h1>🎬 BEAT THE M — MODERATOR</h1>
+    <div class="header-right">
+      <div class="round-switch">
+        <button id="round1-btn" onclick="setRound(1)">Runde 1</button>
+        <button id="round2-btn" onclick="setRound(2)">Runde 2 (x2)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="board" onclick="switchTab('board')">🎯 Spielbrett</button>
+    <button class="tab-btn" data-tab="setup" onclick="switchTab('setup')">✏️ Fragen &amp; Kategorien</button>
+    <button class="tab-btn" data-tab="players" onclick="switchTab('players')">👥 Spieler</button>
+    <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">⚙️ Einstellungen</button>
+  </div>
+
+  <!-- BOARD TAB -->
+  <div class="tab-panel active" id="panel-board">
+    <div id="mod-board-area"></div>
+  </div>
+
+  <!-- SETUP TAB -->
+  <div class="tab-panel" id="panel-setup">
+    <p style="color:#a9adcf; margin-bottom:16px;">
+      Bearbeite hier die Kategorienamen sowie Fragen &amp; Antworten der aktuell gewählten Runde
+      (oben rechts umschaltbar). Änderungen werden automatisch gespeichert.
+    </p>
+    <div class="setup-grid" id="setup-grid"></div>
+  </div>
+
+  <!-- PLAYERS TAB -->
+  <div class="tab-panel" id="panel-players">
+    <div style="max-width:700px;">
+      <div id="players-list"></div>
+      <button class="btn-primary" onclick="addPlayer()" style="margin-top:10px;">+ Spieler hinzufügen</button>
+      <div class="toolbar-danger">
+        <button class="btn-danger" onclick="if(confirm('Alle Punktestände auf 0 zurücksetzen?')) sendAction('RESET_SCORES')">Alle Punkte zurücksetzen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="tab-panel" id="panel-settings">
+    <div class="settings-grid">
+      <div class="settings-card">
+        <h3>Farben</h3>
+        <div class="field">
+          <label>Primärfarbe (Board-Hintergrund)</label>
+          <div class="color-row">
+            <input type="color" id="primaryColor" onchange="updateSetting('primaryColor', this.value)">
+          </div>
+        </div>
+        <div class="field">
+          <label>Akzentfarbe (Gold / Highlights)</label>
+          <div class="color-row">
+            <input type="color" id="secondaryColor" onchange="updateSetting('secondaryColor', this.value)">
+          </div>
+        </div>
+        <div class="field">
+          <label>Textfarbe Kategorien</label>
+          <div class="color-row">
+            <input type="color" id="boardTextColor" onchange="updateSetting('boardTextColor', this.value)">
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Hintergrundbild (Overlay)</h3>
+        <div class="bg-preview" id="bg-preview"></div>
+        <input type="file" id="bg-file" accept="image/*" onchange="onBgFile(event)">
+        <div style="margin-top:10px;">
+          <button class="btn-secondary" onclick="updateSetting('backgroundImage','')">Entfernen (transparent für OBS)</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Beschriftung</h3>
+        <div class="field">
+          <label>Logo-Text im Overlay</label>
+          <input type="text" id="logoText" onchange="updateSetting('logoText', this.value)">
+        </div>
+        <div class="field">
+          <label><input type="checkbox" id="showFacecams" onchange="updateSetting('showFacecams', this.checked)"> Facecam-Fenster im Overlay anzeigen</label>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Glow-Effekt</h3>
+        <div class="field">
+          <label><input type="checkbox" id="glowEnabled" onchange="updateSetting('glowEnabled', this.checked)"> Glow aktivieren (Kategorien, Fragen, Kacheln)</label>
+        </div>
+        <div class="field">
+          <label>Glow-Farbe</label>
+          <input type="color" id="glowColor" onchange="updateSetting('glowColor', this.value)">
+        </div>
+        <div class="field">
+          <label>Blur / Größe (<span id="glowBlurVal">18</span>px)</label>
+          <input type="range" min="0" max="50" id="glowBlur" style="width:100%" oninput="document.getElementById('glowBlurVal').textContent=this.value" onchange="updateSetting('glowBlur', Number(this.value))">
+        </div>
+        <div class="field">
+          <label>Intensität (<span id="glowIntensityVal">70</span>%)</label>
+          <input type="range" min="0" max="100" id="glowIntensity" style="width:100%" oninput="document.getElementById('glowIntensityVal').textContent=this.value" onchange="updateSetting('glowIntensity', Number(this.value))">
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Links für OBS</h3>
+        <p style="font-size:13px; color:#a9adcf; margin-bottom:8px;">Diese Adresse als "Browser-Quelle" in OBS einfügen:</p>
+        <div class="link-box" id="overlay-link"></div>
+        <p style="font-size:13px; color:#a9adcf; margin:12px 0 8px;">Empfohlene Größe: 1920×1080, Hintergrund transparent (kein Häkchen bei "Hintergrundbild" nötig).</p>
+      </div>
+
+      <div class="settings-card">
+        <h3>Backup (Export/Import)</h3>
+        <p style="font-size:13px; color:#a9adcf; margin-bottom:10px;">
+          Wichtig beim Online-Hosting: kostenlose Server starten gelegentlich neu und verlieren dabei den Spielstand.
+          Vor dem Stream einmal exportieren, danach jederzeit wieder einspielen.
+        </p>
+        <div class="import-export-row">
+          <button class="btn-secondary" onclick="exportState()">⬇ Spielstand exportieren</button>
+          <button class="btn-secondary" onclick="document.getElementById('import-file').click()">⬆ Spielstand importieren</button>
+          <input type="file" id="import-file" accept="application/json" class="hidden" onchange="importState(event)">
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <h3>Gefahrenzone</h3>
+        <div class="toolbar-danger">
+          <button class="btn-danger" onclick="if(confirm('Board zurücksetzen (alle Fragen wieder offen)?')) sendAction('RESET_BOARD')">Board zurücksetzen</button>
+          <button class="btn-danger" onclick="if(confirm('WIRKLICH alles zurücksetzen? Das löscht Fragen, Spieler und Einstellungen!')) sendAction('FULL_RESET')">Komplett-Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /#app-root -->
+
+<script src="client.js"></script>
+<script src="moderator.js"></script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Beat the M — Overlay</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /*
+    Feste Referenz-Leinwand: 1920x1080 (16:9). Alle Positionen sind bewusst
+    in echten Pixeln (nicht %/vw) angegeben, damit die Ausschnitte im
+    Hintergrundbild (siehe .bg-layer clip-path) exakt mit den Facecam-
+    Fenstern übereinstimmen. Die ganze Bühne wird per JS in jede
+    Fenster-/OBS-Quellgröße skaliert (Letterboxing).
+  */
+  html, body.overlay-body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    background: transparent !important; /* Body selbst bleibt immer transparent */
+  }
+
+  .stage {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+  }
+
+  /* Hintergrundbild-Ebene: bekommt bei Bedarf zwei rechteckige "Löcher"
+     exakt an den Facecam-Positionen, damit dort echte Transparenz bleibt. */
+  .bg-layer {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    background-size: cover;
+    background-position: center;
+  }
+
+  .stage-header {
+    position: absolute;
+    top: 30px;
+    left: 0;
+    width: 1920px;
+    height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .show-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 56px;
+    letter-spacing: 7px;
+    color: var(--color-secondary);
+    text-shadow: 0 3px 8px rgba(0,0,0,.7); /* nur Kontrastschatten, KEIN Glow */
+  }
+
+  .round-badge {
+    background: rgba(0,0,0,.55);
+    border: 2px solid var(--color-secondary);
+    border-radius: 10px;
+    padding: 5px 14px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+
+  .board-center {
+    position: absolute;
+    top: 150px;
+    left: 50px;
+    width: 1820px;
+    height: 544px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden; /* Sicherheitsnetz: Inhalt darf NIE in die Facecam-Reihe unten hineinlaufen */
+  }
+
+  #board-container.overlay-board { width: 100%; height: 100%; }
+  #board-container.overlay-board .board-grid {
+    width: 100%;
+    height: 100%;
+    grid-template-rows: 68px repeat(5, 1fr);
+    gap: 8px;
+  }
+  #board-container.overlay-board .cat-header {
+    font-size: 22px;
+    min-height: 0;
+    height: 100%;
+    padding: 0 8px;
+  }
+  #board-container.overlay-board .cell {
+    font-size: 38px;
+    height: 100%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .question-overlay { width: 1400px; }
+  .question-overlay .question-text { font-size: 38px; }
+  .question-overlay .answer-text { font-size: 32px; }
+  .question-overlay .question-value { font-size: 26px; }
+
+  /* Facecam-Fenster: unten links & unten rechts, im echten 16:9-Format */
+  .facecam-slot {
+    position: absolute;
+    top: 722px;
+    width: 480px;
+  }
+  .facecam-slot.left { left: 50px; }
+  .facecam-slot.right { left: 1390px; }
+
+  .facecam-frame {
+    width: 480px;
+    height: 270px; /* 480x270 = exakt 16:9 */
+  }
+
+  .facecam-slot .facecam-labels {
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body class="overlay-body" id="body">
+
+  <div class="stage" id="stage">
+    <div class="bg-layer" id="bg-layer"></div>
+
+    <div class="stage-header">
+      <div class="show-title" id="logo-text">BEAT THE M</div>
+      <div class="round-badge" id="round-badge">RUNDE 1</div>
+      <div class="scoreboard hidden" id="fallback-scoreboard" style="margin-top:4px;"></div>
+    </div>
+
+    <div class="board-center" id="board-area">
+      <div class="board-wrap" id="board-container"></div>
+    </div>
+
+    <div class="facecam-slot left">
+      <div class="facecam-frame"></div>
+      <div class="facecam-labels" id="facecam-left"></div>
+    </div>
+
+    <div class="facecam-slot right">
+      <div class="facecam-frame"></div>
+      <div class="facecam-labels" id="facecam-right"></div>
+    </div>
+  </div>
+
+<script src="client.js"></script>
+<script src="overlay.js"></script>
+</body>
+</html>
