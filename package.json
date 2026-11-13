@@ -1,0 +1,14 @@
+{
+  "name": "beat-the-m",
+  "version": "1.0.0",
+  "description": "Beat the M — modulare Gameshow-Plattform (Twitch)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
