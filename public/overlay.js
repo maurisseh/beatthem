@@ -120,8 +120,8 @@ function renderBoard(state) {
   boardLayer.innerHTML = '';
   boardLayer.appendChild(wrap);
 
-  // Bei offener Frage bleibt das Board sichtbar, aber weichgezeichnet
-  Stage.setBlur(boardLayer, !!jp.activeQuestion);
+  // Bei offener Frage ist NUR die Frage zu sehen — das Board wird komplett ausgeblendet
+  boardLayer.classList.toggle('hidden', !!jp.activeQuestion);
 }
 
 function renderQuestion(state) {

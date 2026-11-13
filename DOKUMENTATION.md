@@ -18,8 +18,8 @@ gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
   `activePlayerId` und Action `SET_ACTIVE_PLAYER`
 - ✅ **Neues Overlay-Layout im Hauptspiel** (`overlay.html`/`overlay.js` nutzen
   jetzt `shared/stage.js`): Logo als PNG oben Mitte, Jeopardy-Board im
-  Spielinhalt-Bereich, bei offener Frage bleibt das Board weichgezeichnet
-  dahinter, **Spieler-Avatare unten** (statt Spieler-Facecams, max. 4),
+  Spielinhalt-Bereich, bei offener Frage ist **nur die Frage** zu sehen (Board
+  komplett ausgeblendet, kein Weichzeichner), **Spieler-Avatare unten** (statt Spieler-Facecams, max. 4),
   **eigene Facecam-Umrandung unten Mitte** (bündig am unteren Rand, transparent
   auch mit Hintergrundbild), aktiver Spieler **blinkt** in seiner Farbe
 - ✅ Moderator: Logo-Upload + Facecam-Schalter (Einstellungen), Avatar-Upload
@@ -28,9 +28,10 @@ gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
   auf den Innenbereich gelegt: **x 720, y 794, 480 × 270** (bei 1920 × 1080)
 - ✅ Spielernamen im Avatar-Schild mittig, Punktestand darunter
 - ✅ **9:16-Handy-Overlay** (`public/overlay-mobile.html` + `overlay-mobile.js`, 1080 × 1920, für TikTok-Clips):
-  oben Facecam (Kamera-Innenbereich x 40, y 76, 1000 × 620), Mitte Frage (Text/Bild/Antwort, Schrift passt sich
-  der Länge an; ohne Frage: Logo + Brettname), unten nur Spieler-Icons (aktiver blinkt); `?scores=1` zeigt
-  zusätzlich Name + Punkte; schlichte Gewinner-Ansicht mit Konfetti. Nutzt denselben State wie das Haupt-Overlay.
+  oben Facecam (Kamera-Innenbereich x 40, y 76, 1000 × 620), darunter **durchgehend das Logo**, Mitte Frage
+  (Text/Bild/Antwort, Schrift passt sich der Länge an; ohne Frage: Brettname), unten **nur der Spieler, der dran
+  ist** (Icon blinkt + Name; niemand dran = unten leer); `?scores=1` zeigt zusätzlich den Punktestand;
+  schlichte Gewinner-Ansicht mit Konfetti (Logo bleibt sichtbar). Nutzt denselben State wie das Haupt-Overlay.
 - ✅ **Mehrere Bretter** (statt fester Runde 1/2): anlegen, benennen, löschen, live schalten
   (Header-Auswahl); Kategorienanzahl (1–8) und Punktwerte/Zeilen (1–8) pro Brett einstellbar
 - ✅ **Text-Import**: ganzes Brett per Text füllen (`K1:F1: "Frage" , "Antwort"`), inkl. Export als Text
@@ -557,7 +558,8 @@ Zuletzt wurde ein neues Referenz-Layout festgelegt (angelehnt an ein
 - **Fragenanzeige:** Das Spielbrett soll beim Öffnen einer Frage **nicht**
   durch ein separates Fenster ersetzt werden, sondern im Hintergrund sichtbar
   bleiben und **weichgezeichnet (blurred)** durchscheinen, während die
-  Frage als Karte davor eingeblendet wird
+  Frage als Karte davor eingeblendet wird *(Stand: verworfen — bei offener Frage wird das Board
+  komplett ausgeblendet, siehe SESSION-ÜBERGABE)*
 - Kategorien bleiben wie im bestehenden Jeopardy-Modul: 6 Kategorien × 5
   Fragen (nicht wie im Referenzbild 4 Fragen)
 

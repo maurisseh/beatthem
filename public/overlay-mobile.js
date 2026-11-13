@@ -1,11 +1,13 @@
-// 9:16-Overlay (1080 x 1920) für TikTok-Clips — Facecam oben, Frage in der Mitte, unten nur Spieler-Icons.
-// Optional: overlay-mobile.html?scores=1 zeigt unter den Icons zusätzlich Name + Punktestand.
+// 9:16-Overlay (1080 x 1920) für TikTok-Clips — Facecam oben, darunter durchgehend das Logo,
+// in der Mitte die Frage, unten nur der Spieler, der gerade dran ist (Icon + Name).
+// Optional: overlay-mobile.html?scores=1 zeigt unter dem Namen zusätzlich den Punktestand.
 
 const SHOW_SCORES = new URLSearchParams(location.search).get('scores') === '1';
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 4; // wie im Haupt-Overlay: nur die ersten 4 Spieler zählen
 
 const stageEl = document.getElementById('stage');
 const camEl = document.getElementById('m-cam');
+const logoEl = document.getElementById('m-logo');
 const middleEl = document.getElementById('m-middle');
 const playersEl = document.getElementById('m-players');
 const winnerEl = document.getElementById('m-winner');
@@ -24,36 +26,31 @@ function fit() {
 window.addEventListener('resize', fit);
 fit();
 
-// ---------- Spieler-Icons (bleiben bestehen, damit das Blinken nicht neu startet) ----------
-const slots = [];
-for (let i = 0; i < MAX_PLAYERS; i++) {
-  const slot = document.createElement('div');
-  slot.className = 'stage-slot hidden';
-  const avatar = document.createElement('div');
-  avatar.className = 'stage-avatar';
-  const img = document.createElement('img');
-  img.alt = '';
-  img.className = 'hidden';
-  const ph = document.createElement('span');
-  ph.className = 'stage-avatar-ph';
-  ph.textContent = '?';
-  avatar.append(img, ph);
-  slot.appendChild(avatar);
-
-  let name = null, score = null;
-  if (SHOW_SCORES) {
-    const plate = document.createElement('div');
-    plate.className = 'stage-plate';
-    name = document.createElement('span');
-    name.className = 'stage-plate-name';
-    score = document.createElement('span');
-    score.className = 'stage-plate-score';
-    plate.append(name, score);
-    slot.appendChild(plate);
-  }
-  playersEl.appendChild(slot);
-  slots.push({ slot, img, ph, name, score });
+// ---------- Unten: nur der Spieler, der dran ist (Element bleibt bestehen, damit das Blinken nicht neu startet) ----------
+const slot = document.createElement('div');
+slot.className = 'stage-slot is-active hidden';
+const avatarBox = document.createElement('div');
+avatarBox.className = 'stage-avatar';
+const avatarImg = document.createElement('img');
+avatarImg.alt = '';
+avatarImg.className = 'hidden';
+const avatarPh = document.createElement('span');
+avatarPh.className = 'stage-avatar-ph';
+avatarPh.textContent = '?';
+avatarBox.append(avatarImg, avatarPh);
+const plate = document.createElement('div');
+plate.className = 'stage-plate';
+const plateName = document.createElement('span');
+plateName.className = 'stage-plate-name';
+plate.appendChild(plateName);
+let plateScore = null;
+if (SHOW_SCORES) {
+  plateScore = document.createElement('span');
+  plateScore.className = 'stage-plate-score';
+  plate.appendChild(plateScore);
 }
+slot.append(avatarBox, plate);
+playersEl.appendChild(slot);
 
 function setImg(img, src) {
   if (src) {
@@ -67,19 +64,14 @@ function setImg(img, src) {
 
 function renderPlayers(state) {
   const players = (state.players || []).slice(0, MAX_PLAYERS);
-  const activeId = state.activePlayerId || null;
-  const someoneActive = !!activeId && players.some(p => p.id === activeId);
-  slots.forEach((sl, i) => {
-    const p = players[i];
-    if (!p) { sl.slot.classList.add('hidden'); return; }
-    sl.slot.classList.remove('hidden');
-    sl.slot.style.setProperty('--player-color', p.color || '#f5c518');
-    sl.slot.classList.toggle('is-active', p.id === activeId);
-    sl.slot.classList.toggle('is-dimmed', someoneActive && p.id !== activeId);
-    setImg(sl.img, p.avatar || '');
-    sl.ph.classList.toggle('hidden', !!p.avatar);
-    if (sl.name) { sl.name.textContent = p.name || ''; sl.score.textContent = p.score; }
-  });
+  const p = players.find(x => x.id === state.activePlayerId);
+  if (!p) { slot.classList.add('hidden'); return; } // niemand dran -> unten bleibt es leer
+  slot.classList.remove('hidden');
+  slot.style.setProperty('--player-color', p.color || '#f5c518');
+  setImg(avatarImg, p.avatar || '');
+  avatarPh.classList.toggle('hidden', !!p.avatar);
+  plateName.textContent = p.name || '';
+  if (plateScore) plateScore.textContent = p.score;
 }
 
 // ---------- Mitte: Frage oder Ruhezustand ----------
@@ -97,16 +89,9 @@ function renderMiddle(state) {
   }
 
   if (!q) {
-    // Ruhezustand: Logo (falls gesetzt) + Brettname
+    // Ruhezustand: Brettname (das Logo steht ohnehin durchgehend unter der Cam)
     const idle = document.createElement('div');
     idle.className = 'm-idle';
-    if (state.settings.logoImage) {
-      const logo = document.createElement('img');
-      logo.className = 'm-logo';
-      logo.src = state.settings.logoImage;
-      logo.alt = '';
-      idle.appendChild(logo);
-    }
     const name = document.createElement('div');
     name.className = 'm-board';
     name.textContent = board.name || '';
@@ -118,11 +103,11 @@ function renderMiddle(state) {
   // Schriftgröße an die Textlänge anpassen, Bild bekommt den Rest der Höhe
   const text = q.question || '';
   const hasImg = q.mediaType === 'image';
-  const fs = text.length > 220 ? 36 : text.length > 150 ? 42 : text.length > 90 ? 48 : 56;
+  const fs = text.length > 300 ? 32 : text.length > 220 ? 36 : text.length > 150 ? 42 : text.length > 90 ? 48 : 56;
   const lines = Math.ceil((text.length * fs * 0.5) / 920);
   const textH = text ? lines * fs * 1.25 : 0;
-  const avail = 740 - 64 - 48 - (jp.showAnswer ? 76 : 0) - 54 - textH;
-  const imgH = Math.max(160, Math.min(520, Math.floor(avail)));
+  const avail = 536 - 64 - 48 - (jp.showAnswer ? 76 : 0) - 54 - textH;
+  const imgH = Math.max(140, Math.min(480, Math.floor(avail)));
 
   const card = document.createElement('div');
   card.className = 'question-card m-card';
@@ -249,6 +234,7 @@ function render(state) {
   applyThemeColors(state.settings);
   applyGlowSettings(state.settings);
   camEl.classList.toggle('hidden', state.settings.showModeratorCam === false);
+  setImg(logoEl, state.settings.logoImage || ''); // Logo durchgehend unter der Cam
   renderMiddle(state);
   renderPlayers(state);
   renderWinner(state);
