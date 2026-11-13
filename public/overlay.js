@@ -1,13 +1,30 @@
 let lastState = null;
+let boardLayer = null;
+let questionLayer = null;
+let roundBadge = null;
 
-// Muss exakt mit den .facecam-frame-Positionen in overlay.html übereinstimmen!
-const FACECAM_RECTS = [
-  { x: 50, y: 722, w: 480, h: 270 },   // links
-  { x: 1390, y: 722, w: 480, h: 270 }  // rechts
-];
-
+initStage();
 connectLiveState(renderOverlay);
 setupStageScaling();
+
+// Baut das gemeinsame Stage-Layout (Logo, Avatare, Host-Facecam) auf und
+// legt im Spielinhalt-Bereich zwei Ebenen an: Board (dahinter) + Frage (davor).
+function initStage() {
+  const stageEl = document.getElementById('stage');
+  const stage = Stage.init(stageEl);
+
+  boardLayer = document.createElement('div');
+  boardLayer.className = 'board-layer';
+  stage.content.appendChild(boardLayer);
+
+  questionLayer = document.createElement('div');
+  questionLayer.className = 'question-layer';
+  stage.content.appendChild(questionLayer);
+
+  roundBadge = document.createElement('div');
+  roundBadge.className = 'round-badge';
+  stageEl.appendChild(roundBadge);
+}
 
 function setupStageScaling() {
   function fit() {
@@ -27,117 +44,64 @@ function renderOverlay(state) {
   applyThemeColors(state.settings);
   applyGlowSettings(state.settings);
 
-  document.getElementById('logo-text').textContent = state.settings.logoText || 'BEAT THE M';
-  document.getElementById('round-badge').textContent =
-    'RUNDE ' + jp.round + (jp.round === 2 ? ' — DOPPELTE PUNKTE' : '');
+  roundBadge.textContent = 'RUNDE ' + jp.round + (jp.round === 2 ? ' — DOPPELTE PUNKTE' : '');
 
-  renderBackground(state);
-  renderBoardOrQuestion(state);
-  renderFacecams(state);
+  Stage.update(state); // Logo-PNG, Avatare, Host-Facecam, Blinken des aktiven Spielers
+  renderBoard(state);
+  renderQuestion(state);
 }
 
-// Hintergrundbild bekommt (nur falls gesetzt) zwei rechteckige "Löcher"
-// exakt an den Facecam-Positionen -> dort bleibt es echt transparent,
-// egal welches Hintergrundbild eingestellt ist.
-function renderBackground(state) {
-  const bg = document.getElementById('bg-layer');
-  if (state.settings.backgroundImage) {
-    bg.style.backgroundImage = `url("${state.settings.backgroundImage}")`;
-    if (state.settings.showFacecams) {
-      const outer = `M0 0 H1920 V1080 H0 Z`;
-      const holes = FACECAM_RECTS.map(r =>
-        `M${r.x} ${r.y} H${r.x + r.w} V${r.y + r.h} H${r.x} Z`
-      ).join(' ');
-      bg.style.clipPath = `path(evenodd, "${outer} ${holes}")`;
-    } else {
-      bg.style.clipPath = 'none';
-    }
-  } else {
-    bg.style.backgroundImage = '';
-    bg.style.clipPath = 'none';
-  }
-}
-
-function renderBoardOrQuestion(state) {
+function renderBoard(state) {
   const jp = state.games.jeopardy;
-  const area = document.getElementById('board-area');
-  area.innerHTML = '';
+  const board = currentBoard(state);
 
-  if (jp.activeQuestion) {
-    const found = findQ(state, jp.activeQuestion);
-    if (!found) return;
-    const { q } = found;
-    const card = document.createElement('div');
-    card.className = 'question-card question-overlay';
-    card.innerHTML = `
-      <div class="question-value">${q.value} PUNKTE</div>
-      <div class="question-text">${escapeHtml(q.question || '(Keine Frage hinterlegt)')}</div>
-      ${jp.showAnswer ? `<div class="answer-text">${escapeHtml(q.answer || '(Keine Antwort hinterlegt)')}</div>` : ''}
-    `;
-    area.appendChild(card);
-  } else {
-    const board = currentBoard(state);
-    const wrap = document.createElement('div');
-    wrap.className = 'board-wrap overlay-board';
-    wrap.id = 'board-container';
+  const wrap = document.createElement('div');
+  wrap.className = 'board-wrap';
+  const grid = document.createElement('div');
+  grid.className = 'board-grid';
 
-    const grid = document.createElement('div');
-    grid.className = 'board-grid';
+  board.forEach(cat => {
+    const header = document.createElement('div');
+    header.className = 'cat-header';
+    header.textContent = cat.name;
+    grid.appendChild(header);
+  });
 
+  for (let row = 0; row < 5; row++) {
     board.forEach(cat => {
-      const header = document.createElement('div');
-      header.className = 'cat-header';
-      header.textContent = cat.name;
-      grid.appendChild(header);
+      const q = cat.questions[row];
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (q.answered ? ' answered' : '');
+      cell.textContent = q.answered ? '' : q.value;
+      grid.appendChild(cell);
     });
-
-    for (let row = 0; row < 5; row++) {
-      board.forEach(cat => {
-        const q = cat.questions[row];
-        const cell = document.createElement('div');
-        cell.className = 'cell' + (q.answered ? ' answered' : '');
-        cell.textContent = q.answered ? '' : q.value;
-        grid.appendChild(cell);
-      });
-    }
-
-    wrap.appendChild(grid);
-    area.appendChild(wrap);
   }
+
+  wrap.appendChild(grid);
+  boardLayer.innerHTML = '';
+  boardLayer.appendChild(wrap);
+
+  // Bei offener Frage bleibt das Board sichtbar, aber weichgezeichnet
+  Stage.setBlur(boardLayer, !!jp.activeQuestion);
 }
 
-function renderFacecams(state) {
-  const leftEl = document.getElementById('facecam-left');
-  const rightEl = document.getElementById('facecam-right');
-  const leftSlot = document.querySelector('.facecam-slot.left');
-  const rightSlot = document.querySelector('.facecam-slot.right');
-  const fallback = document.getElementById('fallback-scoreboard');
+function renderQuestion(state) {
+  const jp = state.games.jeopardy;
+  questionLayer.innerHTML = '';
+  if (!jp.activeQuestion) return;
 
-  const show = state.settings.showFacecams;
-  leftSlot.classList.toggle('hidden', !show);
-  rightSlot.classList.toggle('hidden', !show);
-  fallback.classList.toggle('hidden', !!show);
+  const found = findQ(state, jp.activeQuestion);
+  if (!found) return;
+  const { q } = found;
 
-  leftEl.innerHTML = '';
-  rightEl.innerHTML = '';
-  fallback.innerHTML = '';
-
-  state.players.forEach((p, i) => {
-    const side = p.side === 'right' ? 'right' : (p.side === 'left' ? 'left' : (i % 2 === 0 ? 'left' : 'right'));
-    const chip = document.createElement('div');
-    chip.className = 'score-chip';
-    chip.style.setProperty('--player-color', p.color);
-    chip.innerHTML = `
-      <div class="score-dot"></div>
-      <div class="score-name">${escapeHtml(p.name)}</div>
-      <div class="score-value">${p.score}</div>
-    `;
-    if (show) {
-      (side === 'left' ? leftEl : rightEl).appendChild(chip);
-    } else {
-      fallback.appendChild(chip.cloneNode(true));
-    }
-  });
+  const card = document.createElement('div');
+  card.className = 'question-card question-overlay';
+  card.innerHTML = `
+    <div class="question-value">${q.value} PUNKTE</div>
+    <div class="question-text">${escapeHtml(q.question || '(Keine Frage hinterlegt)')}</div>
+    ${jp.showAnswer ? `<div class="answer-text">${escapeHtml(q.answer || '(Keine Antwort hinterlegt)')}</div>` : ''}
+  `;
+  questionLayer.appendChild(card);
 }
 
 function findQ(state, ref) {

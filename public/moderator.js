@@ -122,6 +122,7 @@ function renderBoardTab(state) {
   const jp = state.games.jeopardy;
   const area = document.getElementById('mod-board-area');
   area.innerHTML = '';
+  renderTurnBar(state);
 
   if (jp.activeQuestion) {
     const ref = jp.activeQuestion;
@@ -258,14 +259,17 @@ function renderPlayersTab(state) {
   state.players.forEach(p => {
     const card = document.createElement('div');
     card.className = 'player-card';
-    const side = p.side === 'right' ? 'right' : 'left';
+    const thumb = p.avatar
+      ? `<img src="${escapeAttr(p.avatar)}" alt="">`
+      : '<span>?</span>';
     card.innerHTML = `
+      <div class="avatar-thumb" style="--pc:${p.color}">${thumb}</div>
       <input type="color" value="${p.color}" onchange="sendAction('UPDATE_PLAYER',{id:'${p.id}',color:this.value})">
       <input type="text" value="${escapeAttr(p.name)}" onchange="sendAction('UPDATE_PLAYER',{id:'${p.id}',name:this.value})">
-      <select onchange="sendAction('UPDATE_PLAYER',{id:'${p.id}',side:this.value})" title="Facecam-Position im Overlay">
-        <option value="left" ${side === 'left' ? 'selected' : ''}>⬅ Links</option>
-        <option value="right" ${side === 'right' ? 'selected' : ''}>Rechts ➡</option>
-      </select>
+      <label class="btn-secondary avatar-btn" title="Avatar hochladen">🖼 Avatar
+        <input type="file" accept="image/*" class="hidden" onchange="onAvatarFile(event,'${p.id}')">
+      </label>
+      ${p.avatar ? `<button class="btn-icon" title="Avatar entfernen" onclick="sendAction('UPDATE_PLAYER',{id:'${p.id}',avatar:''})">✕</button>` : ''}
       <div class="player-score-controls">
         <button class="btn-icon" onclick="sendAction('ADJUST_SCORE',{id:'${p.id}',delta:-100})">−100</button>
         <button class="btn-icon" onclick="sendAction('ADJUST_SCORE',{id:'${p.id}',delta:-10})">−10</button>
@@ -292,8 +296,11 @@ function renderSettingsTab(state) {
   document.getElementById('primaryColor').value = s.primaryColor;
   document.getElementById('secondaryColor').value = s.secondaryColor;
   document.getElementById('boardTextColor').value = s.boardTextColor;
-  document.getElementById('logoText').value = s.logoText;
-  document.getElementById('showFacecams').checked = s.showFacecams;
+  document.getElementById('showModeratorCam').checked = s.showModeratorCam !== false;
+  const logoPrev = document.getElementById('logo-preview');
+  logoPrev.innerHTML = s.logoImage
+    ? `<img src="${escapeAttr(s.logoImage)}" alt="">`
+    : '<span class="hint">kein Logo</span>';
 
   document.getElementById('glowEnabled').checked = s.glowEnabled !== false;
   document.getElementById('glowColor').value = s.glowColor || '#f5c518';
@@ -327,6 +334,78 @@ function onBgFile(event) {
     updateSetting('backgroundImage', reader.result);
   };
   reader.readAsDataURL(file);
+}
+
+// ---------------- Wer ist dran? ----------------
+
+function renderTurnBar(state) {
+  const bar = document.getElementById('turn-bar');
+  bar.innerHTML = '<span class="turn-label">Wer ist dran?</span>';
+  state.players.forEach(p => {
+    const btn = document.createElement('button');
+    const isActive = state.activePlayerId === p.id;
+    btn.className = 'turn-btn' + (isActive ? ' active' : '');
+    btn.style.setProperty('--pc', p.color);
+    btn.textContent = p.name;
+    btn.onclick = () => sendAction('SET_ACTIVE_PLAYER', { id: isActive ? null : p.id });
+    bar.appendChild(btn);
+  });
+  const none = document.createElement('button');
+  none.className = 'btn-secondary';
+  none.style.padding = '7px 14px';
+  none.textContent = 'Niemand';
+  none.onclick = () => sendAction('SET_ACTIVE_PLAYER', { id: null });
+  bar.appendChild(none);
+}
+
+// ---------------- Logo & Avatare (Bild einlesen + verkleinern) ----------------
+
+// Transparenz (PNG) bleibt erhalten. Pixel-Art wird beim Verkleinern nicht weichgezeichnet.
+function readImage(file, maxW, maxH, pixelArt) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
+        if (scale === 1 && file.type === 'image/png') return resolve(reader.result);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * scale));
+        c.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = !pixelArt;
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function onLogoFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    updateSetting('logoImage', await readImage(file, 1200, 300, false));
+  } catch (e) {
+    alert('Bild konnte nicht gelesen werden.');
+  }
+  event.target.value = '';
+}
+
+async function onAvatarFile(event, playerId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const data = await readImage(file, 512, 512, true);
+    sendAction('UPDATE_PLAYER', { id: playerId, avatar: data });
+  } catch (e) {
+    alert('Bild konnte nicht gelesen werden.');
+  }
+  event.target.value = '';
 }
 
 // ---------------- Utils ----------------

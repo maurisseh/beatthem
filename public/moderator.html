@@ -187,6 +187,48 @@
   .login-error { color: #e74c3c; font-size: 13px; margin-top: 10px; min-height: 16px; }
 
   .import-export-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* Wer ist dran? (Board-Tab) */
+  .turn-bar {
+    max-width: 1400px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #14173a;
+    border: 1px solid #23264a;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .turn-bar .turn-label { font-size: 13px; color: #a9adcf; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+  .turn-btn {
+    background: transparent;
+    color: #fff;
+    border: 2px solid var(--pc, #3b3f66);
+    padding: 7px 14px;
+    font-size: 14px;
+  }
+  .turn-btn:hover { background: rgba(255,255,255,.07); }
+  .turn-btn.active { background: var(--pc); color: #0a0c1e; }
+
+  /* Avatare / Logo */
+  .avatar-thumb {
+    width: 48px; height: 48px; flex: 0 0 48px;
+    border-radius: 8px; border: 3px solid var(--pc, #3b3f66);
+    background: #0b0d22; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .avatar-thumb img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+  .avatar-thumb span { color: var(--pc); font-family: 'Bebas Neue', sans-serif; font-size: 24px; opacity: .6; }
+  .avatar-btn { display: inline-block; margin: 0; cursor: pointer; border-radius: 10px; font-weight: 600; color: #fff; padding: 8px 12px; font-size: 13px; }
+  .logo-preview {
+    height: 80px; border: 1px dashed #3b3f66; border-radius: 10px; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    background: repeating-conic-gradient(#1b1f47 0% 25%, #14173a 0% 50%) 50% / 20px 20px;
+  }
+  .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .hint { font-size: 12px; color: #a9adcf; line-height: 1.5; margin-top: 8px; }
 </style>
 </head>
 <body class="moderator-body">
@@ -221,6 +263,7 @@
 
   <!-- BOARD TAB -->
   <div class="tab-panel active" id="panel-board">
+    <div class="turn-bar" id="turn-bar"></div>
     <div id="mod-board-area"></div>
   </div>
 
@@ -236,6 +279,10 @@
   <!-- PLAYERS TAB -->
   <div class="tab-panel" id="panel-players">
     <div style="max-width:700px;">
+      <p class="hint" style="margin:0 0 14px;">
+        Avatar: PNG/Bild, quadratisch, bis 512 × 512 px (z. B. aus der Quiz Arena exportiert).
+        Im Overlay werden die ersten <b>4 Spieler</b> angezeigt.
+      </p>
       <div id="players-list"></div>
       <button class="btn-primary" onclick="addPlayer()" style="margin-top:10px;">+ Spieler hinzufügen</button>
       <div class="toolbar-danger">
@@ -279,13 +326,19 @@
       </div>
 
       <div class="settings-card">
-        <h3>Beschriftung</h3>
+        <h3>Logo &amp; Facecam</h3>
         <div class="field">
-          <label>Logo-Text im Overlay</label>
-          <input type="text" id="logoText" onchange="updateSetting('logoText', this.value)">
+          <label>Logo (PNG, oben Mitte im Overlay)</label>
+          <div class="logo-preview" id="logo-preview"></div>
+          <input type="file" id="logo-file" accept="image/*" onchange="onLogoFile(event)">
+          <div style="margin-top:8px;">
+            <button class="btn-secondary" onclick="updateSetting('logoImage','')">Logo entfernen</button>
+          </div>
+          <div class="hint">Empfohlen: PNG mit transparentem Hintergrund, ca. <b>800 × 160 px</b> (5:1). Wird automatisch eingepasst.</div>
         </div>
         <div class="field">
-          <label><input type="checkbox" id="showFacecams" onchange="updateSetting('showFacecams', this.checked)"> Facecam-Fenster im Overlay anzeigen</label>
+          <label><input type="checkbox" id="showModeratorCam" onchange="updateSetting('showModeratorCam', this.checked)"> Meine Facecam-Umrandung anzeigen (unten Mitte)</label>
+          <div class="hint">16:9-Rahmen (480 × 270 bei 1920 × 1080) am unteren Rand. Die Fläche ist transparent — leg deine Webcam in OBS genau dort drauf.</div>
         </div>
       </div>
 
