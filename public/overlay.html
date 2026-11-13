@@ -58,11 +58,13 @@
     /* grid-template-columns / -rows setzt overlay.js (Anzahl Kategorien/Zeilen ist einstellbar) */
   }
   .board-layer .cat-header {
-    font-size: 22px;
+    /* Schriftgröße setzt overlay.js je nach Kategorienanzahl und Namenslänge */
     min-height: 0;
     height: 100%;
-    padding: 0 8px;
+    padding: 0 10px;
+    overflow: hidden;
   }
+  .board-layer .cat-label { display: block; width: 100%; text-align: center; overflow-wrap: normal; word-break: normal; }
   .board-layer .cell {
     font-size: var(--cell-fs, 38px);
     height: 100%;

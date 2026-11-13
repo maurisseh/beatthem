@@ -748,6 +748,10 @@ function renderSettingsTab(state) {
   document.getElementById('secondaryColor').value = s.secondaryColor;
   document.getElementById('boardTextColor').value = s.boardTextColor;
   document.getElementById('showModeratorCam').checked = s.showModeratorCam !== false;
+  document.getElementById('categoryColor').value = s.categoryColor || s.primaryColor;
+  document.getElementById('camFrameColor').value = s.camFrameColor || s.secondaryColor;
+  document.getElementById('camFrameWidth').value = s.camFrameWidth || 16;
+  document.getElementById('camFrameWidthVal').textContent = s.camFrameWidth || 16;
   document.getElementById('autoWinner').checked = s.autoWinner !== false;
   const logoPrev = document.getElementById('logo-preview');
   logoPrev.innerHTML = s.logoImage

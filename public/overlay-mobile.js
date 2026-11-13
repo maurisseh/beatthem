@@ -233,6 +233,15 @@ function stopConfetti() {
 function render(state) {
   applyThemeColors(state.settings);
   applyGlowSettings(state.settings);
+  // Facecam-Kontur: Farbe + Dicke einstellbar, Innenfläche (x 40, y 76, 1000 × 620) bleibt gleich
+  const fw = Math.max(2, Math.min(40, Number(state.settings.camFrameWidth) || 16));
+  camEl.style.left = (40 - fw) + 'px';
+  camEl.style.top = (76 - fw) + 'px';
+  camEl.style.width = (1000 + 2 * fw) + 'px';
+  camEl.style.height = (620 + 2 * fw) + 'px';
+  camEl.style.borderWidth = fw + 'px';
+  camEl.style.borderRadius = (20 + fw) + 'px';
+  camEl.style.borderColor = state.settings.camFrameColor || '';
   camEl.classList.toggle('hidden', state.settings.showModeratorCam === false);
   setImg(logoEl, state.settings.logoImage || ''); // Logo durchgehend unter der Cam
   renderMiddle(state);

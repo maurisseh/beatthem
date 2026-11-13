@@ -171,7 +171,17 @@ const Stage = (() => {
     // Logo: nur PNG (kein Text mehr)
     setImg(els.logo, s.logoImage || '');
 
-    // Deine Facecam-Umrandung
+    // Deine Facecam-Umrandung: Farbe + Dicke einstellbar. Die Kamera-Innenfläche (HOST_INNER) bleibt
+    // immer gleich, die Kontur wächst nach außen; der Innenradius bleibt 20 px (überdeckt die Kamera-Ecken).
+    const fw = Math.max(2, Math.min(40, Number(s.camFrameWidth) || HOST_BORDER));
+    const hc = els.hostcam.style;
+    hc.left = (HOST_INNER.x - fw) + 'px';
+    hc.top = (HOST_INNER.y - fw) + 'px';
+    hc.width = (HOST_INNER.w + 2 * fw) + 'px';
+    hc.height = (HOST_INNER.h + 2 * fw) + 'px';
+    hc.borderWidth = fw + 'px';
+    hc.borderRadius = (HOST_RADIUS - HOST_BORDER + fw) + 'px';
+    hc.borderColor = s.camFrameColor || ''; // leer = Akzentfarbe
     els.hostcam.classList.toggle('hidden', s.showModeratorCam === false);
 
     // Spieler-Avatare

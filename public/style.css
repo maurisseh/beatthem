@@ -128,13 +128,14 @@ label { font-size: 13px; color: #a9adcf; font-weight: 600; display: block; margi
 }
 
 .cat-header {
-  background: linear-gradient(160deg, var(--color-primary), #000 220%);
+  background: linear-gradient(160deg, var(--color-category, var(--color-primary)), #000 220%);
   border: 2px solid var(--color-secondary);
   border-radius: var(--radius);
   padding: 14px 8px;
   text-align: center;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(15px, 1.6vw, 24px);
+  font-size: clamp(18px, 2vw, 30px);
+  line-height: 1.05;
   letter-spacing: 0.5px;
   color: var(--color-text);
   min-height: 64px;

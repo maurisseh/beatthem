@@ -105,7 +105,10 @@ function defaultState() {
       glowColor: '#f5c518',
       glowBlur: 18,
       glowIntensity: 70,
-      autoWinner: true          // Gewinner-Animation automatisch nach der letzten Frage
+      autoWinner: true,         // Gewinner-Animation automatisch nach der letzten Frage
+      categoryColor: '',        // Hintergrundfarbe der Kategorie-Kopfzeilen ('' = wie primaryColor)
+      camFrameColor: '',        // Farbe der Facecam-Kontur ('' = wie secondaryColor)
+      camFrameWidth: 16         // Dicke der Facecam-Kontur in px (wächst nach außen, Kamera-Innenfläche bleibt gleich)
     },
     activePlayerId: null, // welcher Spieler gerade "dran" ist (Glow-Highlight)
     activeGame: 'jeopardy',

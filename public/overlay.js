@@ -8,6 +8,8 @@ let confettiRaf = null;
 
 initStage();
 connectLiveState(renderOverlay);
+// Sobald die Webschrift (Bebas Neue) geladen ist, Kategorien noch einmal exakt einpassen
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (lastState) renderOverlay(lastState); });
 setupStageScaling();
 
 // Baut das gemeinsame Stage-Layout (Logo, Avatare, Host-Facecam) auf und
@@ -94,15 +96,25 @@ function renderBoard(state) {
   grid.className = 'board-grid';
   // Spalten = Kategorien, Zeilen = Punktwerte (beides pro Brett einstellbar)
   grid.style.gridTemplateColumns = `repeat(${cats.length}, 1fr)`;
-  grid.style.gridTemplateRows = `68px repeat(${rows}, 1fr)`;
-  const rowH = (Stage.SAFE_CONTENT_AREA.h - 68 - rows * 8) / rows;
+  const HEADER_H = 84; // Kopfzeile mit den Kategorienamen (bis zu zwei Zeilen)
+  grid.style.gridTemplateRows = `${HEADER_H}px repeat(${rows}, 1fr)`;
+  const rowH = (Stage.SAFE_CONTENT_AREA.h - HEADER_H - rows * 8) / rows;
   wrap.style.setProperty('--cell-fs', Math.min(38, Math.floor(rowH * 0.62)) + 'px');
 
+  // Kategorie-Schrift: Startgröße je nach Kategorienanzahl, danach wird pro Kategorie gemessen und
+  // nur so weit verkleinert, wie nötig (kein Umbruch mitten im Wort, nichts läuft über)
+  const baseFs = cats.length <= 4 ? 42 : cats.length <= 6 ? 36 : 30;
+  const headers = [];
   cats.forEach(cat => {
     const header = document.createElement('div');
     header.className = 'cat-header';
-    header.textContent = cat.name;
+    const label = document.createElement('span');
+    label.className = 'cat-label';
+    label.textContent = cat.name;
+    header.appendChild(label);
+    header.style.fontSize = baseFs + 'px';
     grid.appendChild(header);
+    headers.push(header);
   });
 
   for (let row = 0; row < rows; row++) {
@@ -119,9 +131,24 @@ function renderBoard(state) {
   wrap.appendChild(grid);
   boardLayer.innerHTML = '';
   boardLayer.appendChild(wrap);
+  fitCategoryLabels(headers, baseFs);
 
   // Bei offener Frage ist NUR die Frage zu sehen — das Board wird komplett ausgeblendet
   boardLayer.classList.toggle('hidden', !!jp.activeQuestion);
+}
+
+// Verkleinert die Schrift einer Kategorie schrittweise, bis der Name ohne Wortumbruch-Fehler in die Kopfzeile passt
+function fitCategoryLabels(headers, baseFs) {
+  headers.forEach(h => {
+    const label = h.firstChild;
+    if (!h.clientHeight) return; // nicht sichtbar (z. B. Frage offen) -> beim nächsten Rendern
+    let fs = baseFs;
+    let guard = 0;
+    while ((label.scrollWidth > label.clientWidth + 1 || label.offsetHeight > h.clientHeight - 6) && fs > 16 && guard++ < 40) {
+      fs -= 2;
+      h.style.fontSize = fs + 'px';
+    }
+  });
 }
 
 function renderQuestion(state) {

@@ -402,6 +402,13 @@
             <input type="color" id="boardTextColor" onchange="updateSetting('boardTextColor', this.value)">
           </div>
         </div>
+        <div class="field">
+          <label>Kategorie-Farbe (Kopfzeile mit den Kategorienamen)</label>
+          <div class="color-row">
+            <input type="color" id="categoryColor" onchange="updateSetting('categoryColor', this.value)">
+            <button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="updateSetting('categoryColor','')">wie Brett</button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-card">
@@ -426,7 +433,19 @@
         </div>
         <div class="field">
           <label><input type="checkbox" id="showModeratorCam" onchange="updateSetting('showModeratorCam', this.checked)"> Meine Facecam-Umrandung anzeigen (unten Mitte)</label>
-          <div class="hint">16:9-Rahmen (480 × 270 bei 1920 × 1080) am unteren Rand. Die Fläche ist transparent — leg deine Webcam in OBS genau dort drauf.</div>
+          <div class="hint">Die Fläche im Rahmen ist transparent — leg deine Webcam in OBS genau dort drauf: <b>x 720, y 794, 480 × 270</b> (bei 1920 × 1080).</div>
+        </div>
+        <div class="field">
+          <label>Facecam-Kontur: Farbe</label>
+          <div class="color-row">
+            <input type="color" id="camFrameColor" onchange="updateSetting('camFrameColor', this.value)">
+            <button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="updateSetting('camFrameColor','')">wie Akzentfarbe</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Facecam-Kontur: Dicke (<span id="camFrameWidthVal">16</span>px)</label>
+          <input type="range" min="4" max="30" id="camFrameWidth" style="width:100%" oninput="document.getElementById('camFrameWidthVal').textContent=this.value" onchange="updateSetting('camFrameWidth', Number(this.value))">
+          <div class="hint">Die Kontur wächst nach außen — die Kamera-Fläche innen bleibt immer gleich. Gilt auch für das 9:16-Overlay. Ab ca. 16 px schneidet der untere Bildrand im 16:9-Overlay die Unterkante etwas ab.</div>
         </div>
       </div>
 

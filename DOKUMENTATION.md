@@ -11,7 +11,7 @@ Dieser Block wird am Ende jeder Arbeits-Session aktualisiert. Er ist dafür da,
 dass ein neuer Claude-Chat (oder du selbst) in 10 Sekunden weiß, woran gerade
 gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
 
-**Zuletzt aktualisiert:** nach Mehrfach-Bretter / Text-Import / Frage-Bilder
+**Zuletzt aktualisiert:** nach Kategorie-Schrift/-Farbe + einstellbarer Facecam-Kontur
 
 **Funktioniert gerade:**
 - ✅ Server (`server.js`) mit modularem State-Schema, inkl. `players[].avatar`,
@@ -27,6 +27,10 @@ gearbeitet wird — ohne den Rest der Doku lesen zu müssen.
 - ✅ **Facecam-Rahmen** dick (16 px) mit runden Innenecken; die Webcam wird in OBS
   auf den Innenbereich gelegt: **x 720, y 794, 480 × 270** (bei 1920 × 1080)
 - ✅ Spielernamen im Avatar-Schild mittig, Punktestand darunter
+- ✅ **Kategorie-Kopfzeilen**: größere Schrift (Overlay misst pro Kategorie und passt sie ein, kein Umbruch
+  mitten im Wort) und **eigene einstellbare Farbe** (`settings.categoryColor`, leer = wie Brett-Farbe)
+- ✅ **Facecam-Kontur einstellbar**: Farbe (`camFrameColor`, leer = Akzentfarbe) und Dicke (`camFrameWidth`, 4–30 px)
+  in den Einstellungen; die Kamera-Innenfläche bleibt immer gleich, die Kontur wächst nach außen (gilt auch im 9:16-Overlay)
 - ✅ **9:16-Handy-Overlay** (`public/overlay-mobile.html` + `overlay-mobile.js`, 1080 × 1920, für TikTok-Clips):
   oben Facecam (Kamera-Innenbereich x 40, y 76, 1000 × 620), darunter **durchgehend das Logo**, Mitte Frage
   (Text/Bild/Antwort, Schrift passt sich der Länge an; ohne Frage: Brettname), unten **nur der Spieler, der dran
@@ -261,7 +265,10 @@ Der komplette Anwendungszustand ist ein einziges JSON-Objekt. Aktuelle Struktur
     "glowColor": "#f5c518",
     "glowBlur": 18,                     // px
     "glowIntensity": 70,                // 0–100 %
-    "autoWinner": true                  // Gewinner-Animation automatisch nach der letzten Frage
+    "autoWinner": true,                 // Gewinner-Animation automatisch nach der letzten Frage
+    "categoryColor": "",                // Kategorie-Kopfzeilen ("" = wie primaryColor)
+    "camFrameColor": "",                // Facecam-Kontur ("" = wie secondaryColor)
+    "camFrameWidth": 16                 // Dicke der Facecam-Kontur in px (4–30)
   },
 
   "activePlayerId": null,               // id des Spielers, der gerade "dran" ist (Glow-Highlight, geplant)

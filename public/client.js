@@ -19,6 +19,8 @@ function applyThemeColors(settings) {
   root.style.setProperty('--color-primary', settings.primaryColor);
   root.style.setProperty('--color-secondary', settings.secondaryColor);
   root.style.setProperty('--color-text', settings.boardTextColor);
+  // Kategorie-Kopfzeilen: eigene Farbe, sonst wie das Brett
+  root.style.setProperty('--color-category', settings.categoryColor || settings.primaryColor);
 }
 
 function applyGlowSettings(settings) {
